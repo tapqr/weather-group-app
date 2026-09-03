@@ -88,7 +88,12 @@ GET /geo/top                →  { locations: NormalizedLocation[] }   上游固
 |---|---|---|
 | `GEO_CACHE_TTL_SECONDS` | `86400` | 24 小时(天气是 1800) |
 | `GEO_THROTTLE_TTL_MS` | `60000` | geo 路由独立的限流窗口 |
-| `GEO_THROTTLE_LIMIT` | `60` | 独立额度,不与 `/weather` 的 30 次抢同一份 |
+| `GEO_THROTTLE_LIMIT` | `20` | **每个路由各自的额度**,不与 `/weather` 的 30 次抢同一份 |
+
+⚠️ `GEO_THROTTLE_LIMIT` 的语义在实现阶段被修正过。本文初稿写的是 `60`,当时以为它是整个 geo
+模块的额度;实际上 `@nestjs/throttler` 的限流 key 按 `ClassName-HandlerName-limiterName-ip`
+生成,是 **per-route** 的 —— 写 60 会变成"每个路由 60、三个路由合计 180",是原意的三倍。
+改成 20 之后,三个路由合计 60/min/IP,才对应这里说的限流意图。评估上游免费额度时要按合计值算。
 
 缓存 key:
 
