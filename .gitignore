@@ -1,0 +1,45 @@
+# 依赖与构建产物
+# backend/ 和 frontend/ 各自也有 .gitignore,这里是根级兜底
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# 环境变量:凭据绝不进版本库(.env.example 是模板,要保留)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# 本地工具状态
+# 注意:.claude/settings.json 是**有意共享**的(只记录启用了哪些插件),不要加进来;
+# 只忽略个人级配置和 worktree 容器目录
+.claude/settings.local.json
+.claude/worktrees/
+.superpowers/
+
+# 注意:.scratch/ 是**有意共享**的 —— issue 和 spec 以 markdown 形式存放在那里
+# (见 docs/agents/issue-tracker.md),不要忽略它
+
+# 编辑器与操作系统
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 日志
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 测试与覆盖率产物
+coverage/
+.nyc_output/

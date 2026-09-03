@@ -606,7 +606,10 @@ EOF
     // 地理数据几乎不变,TTL 开得比天气长得多(天气是 1800)
     cacheTtlSeconds: parseInt(process.env.GEO_CACHE_TTL_SECONDS ?? '86400', 10),
     throttleTtlMs: parseInt(process.env.GEO_THROTTLE_TTL_MS ?? '60000', 10),
-    throttleLimit: parseInt(process.env.GEO_THROTTLE_LIMIT ?? '60', 10),
+    // 注意:@nestjs/throttler 的限流 key 按 ClassName-HandlerName-limiterName-ip 生成,
+    // 是 per-route 的 —— 这个值是 /geo/reverse、/geo/search、/geo/top 各自的额度,
+    // 三个路由合计是它的 3 倍。默认 20 即合计 60/min/IP,对应原本的限流意图。
+    throttleLimit: parseInt(process.env.GEO_THROTTLE_LIMIT ?? '20', 10),
   },
 ```
 
@@ -832,9 +835,10 @@ cd backend && npm test
 # 地理接口(和风 GeoAPI,复用上面的 QWEATHER_API_HOST / QWEATHER_API_KEY)
 # 地理数据几乎不变,TTL 比天气长得多
 GEO_CACHE_TTL_SECONDS=86400
-# geo 路由独立的限流额度,不与 /weather 抢同一份
+# geo 路由独立的限流额度,不与 /weather 抢同一份。
+# 注意这是「每个路由各自的额度」,三个路由合计是它的 3 倍
 GEO_THROTTLE_TTL_MS=60000
-GEO_THROTTLE_LIMIT=60
+GEO_THROTTLE_LIMIT=20
 ```
 
 - [ ] **Step 11: 更新 README**
@@ -844,7 +848,7 @@ GEO_THROTTLE_LIMIT=60
 ```markdown
 | `GEO_CACHE_TTL_SECONDS` | 地理接口缓存 TTL(秒)。地理数据几乎不变,开得比天气长得多 | `86400` | 否 |
 | `GEO_THROTTLE_TTL_MS` | 地理接口限流统计窗口(毫秒) | `60000` | 否 |
-| `GEO_THROTTLE_LIMIT` | 地理接口每窗口每 IP 的请求数。**与 `/weather` 的额度相互独立** | `60` | 否 |
+| `GEO_THROTTLE_LIMIT` | **每个 geo 路由**每窗口每 IP 的请求数(`@nestjs/throttler` 的限流 key 是 per-handler 的,三个路由合计为此值的 3 倍)。与 `/weather` 的额度相互独立 | `20` | 否 |
 ```
 
 再在「API」一节末尾追加:
