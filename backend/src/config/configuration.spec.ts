@@ -18,6 +18,7 @@ describe('configuration', () => {
       GEO_CACHE_TTL_SECONDS: '43200',
       GEO_THROTTLE_TTL_MS: '30000',
       GEO_THROTTLE_LIMIT: '90',
+      API_PREFIX: 'api',
     };
   });
 
@@ -35,6 +36,19 @@ describe('configuration', () => {
       caiyun: { token: 'cy-token' },
       throttle: { ttlMs: 120000, limit: 60 },
       geo: { cacheTtlSeconds: 43200, throttleTtlMs: 30000, throttleLimit: 90 },
+      apiPrefix: 'api',
     });
+  });
+
+  it('apiPrefix 默认为空 —— 不设 API_PREFIX 时接口仍挂在根路径,本地开发不受子路径部署影响', () => {
+    delete process.env.API_PREFIX;
+
+    expect(configuration().apiPrefix).toBe('');
+  });
+
+  it('把前后的斜杠削掉,免得 setGlobalPrefix 拼出 //api/weather 这种路径', () => {
+    process.env.API_PREFIX = '/api/';
+
+    expect(configuration().apiPrefix).toBe('api');
   });
 });
