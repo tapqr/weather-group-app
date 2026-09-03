@@ -13,11 +13,15 @@
 ```json
 {
   "results": [
-    { "provider": "qweather", "status": "ok", "data": { "...": "见下方" } },
-    { "provider": "caiyun", "status": "error", "message": "数据源暂时不可用" }
+    { "provider": "caiyun", "status": "ok", "data": { "...": "见下方" } },
+    { "provider": "qweather", "status": "error", "message": "数据源暂时不可用" }
   ]
 }
 ```
+
+`results` 的**顺序是稳定的**:彩云天气在前、和风天气在后,由 `providers.module.ts` 里
+`WEATHER_PROVIDERS` 的注册顺序决定(有 `providers.module.spec.ts` 锁定)。前端顶部对比区
+和卡片的先后直接跟随这个顺序 —— 调整它会改变界面上两家的左右位置。
 
 `results` 里每个数据源一条记录,`status` 只有两种取值:
 
