@@ -1,0 +1,113 @@
+/*
+ * 全局基调与设计 token。
+ *
+ * 配色由两个维度驱动,互不干涉:
+ *   1. 昼夜(data-daypart)—— 决定页面底色和文字明度。昼夜是客观事实,两家数据源没有分歧。
+ *   2. 天气(卡片上的 data-condition)—— 决定每张数据源卡片自己的色调,见 ProviderCard.vue。
+ *
+ * 这里刻意不跟随 prefers-color-scheme:天气应用的配色是内容的一部分(它在表达"外面现在
+ * 什么样"),不是界面外壳偏好。白天就该是亮的,哪怕系统开着深色模式 —— iOS 天气同理。
+ */
+
+:root {
+  --font-sans: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  --radius-card: 20px;
+  --radius-chip: 14px;
+  --gap: 14px;
+  --page-pad: 18px;
+
+  --card-border: rgba(255, 255, 255, 0.14);
+  --card-veil: rgba(255, 255, 255, 0.1);
+
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * 明度关系:页面背景始终比卡片浅,卡片是"沉"进去的而不是"浮"起来的。
+ * 所以 --card-veil 用的是深色半透明(而不是常见的白色蒙版),叠在浅背景上自然压暗一档。
+ */
+
+/* 白天:很浅的天蓝到近白,深色文字 */
+:root[data-daypart='day'] {
+  --sky-from: #d3e9fa;
+  --sky-via: #e7f3fd;
+  --sky-to: #f5fafe;
+  --ink: #0d2436;
+  --ink-dim: rgba(13, 36, 54, 0.62);
+  --ink-faint: rgba(13, 36, 54, 0.4);
+  --card-veil: rgba(13, 36, 54, 0.07);
+  --card-border: rgba(13, 36, 54, 0.1);
+}
+
+/* 晨昏:浅橙粉到浅藕紫,深色文字 */
+:root[data-daypart='twilight'] {
+  --sky-from: #f7d3b6;
+  --sky-via: #f0c6c2;
+  --sky-to: #d9c2d8;
+  --ink: #34192a;
+  --ink-dim: rgba(52, 25, 42, 0.66);
+  --ink-faint: rgba(52, 25, 42, 0.44);
+  --card-veil: rgba(52, 25, 42, 0.08);
+  --card-border: rgba(52, 25, 42, 0.12);
+}
+
+/* 夜间:中深蓝紫,浅色文字。背景不压到最暗,给卡片留出更深的一档 */
+:root[data-daypart='night'] {
+  --sky-from: #37477e;
+  --sky-via: #2f3f70;
+  --sky-to: #283760;
+  --ink: #eef3ff;
+  --ink-dim: rgba(238, 243, 255, 0.7);
+  --ink-faint: rgba(238, 243, 255, 0.45);
+  --card-veil: rgba(4, 8, 24, 0.24);
+  --card-border: rgba(4, 8, 24, 0.32);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  color: var(--ink);
+  background: linear-gradient(170deg, var(--sky-from) 0%, var(--sky-via) 45%, var(--sky-to) 100%);
+  background-attachment: fixed;
+  transition: background 600ms ease, color 300ms ease;
+}
+
+#app {
+  min-height: 100svh;
+  /* 桌面上不铺满整屏 —— 这是个 H5 页面,按手机宽度居中更接近它真实的使用形态 */
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* 移动端点按目标不小于 44px,且不出现选中高亮 */
+button {
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}

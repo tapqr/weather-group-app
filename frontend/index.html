@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- viewport-fit=cover 是 env(safe-area-inset-*) 生效的前提,刘海屏上少了它顶部会被挡 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- 初始值对应白天基调;实际值由 App.vue 按昼夜时段覆盖 -->
+    <meta name="theme-color" content="#d3e9fa" />
+    <title>天气对比</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
