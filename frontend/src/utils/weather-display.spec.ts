@@ -97,7 +97,7 @@ describe('resolveDayPart', () => {
 });
 
 describe('formatTemperature', () => {
-  it('把彩云的两位小数取整,与和风的整数对齐', () => {
+  it('把两家的两位小数取整', () => {
     expect(formatTemperature(24.56)).toBe('25');
     expect(formatTemperature(25)).toBe('25');
   });
@@ -123,7 +123,7 @@ describe('formatTemperature', () => {
 });
 
 describe('formatWindSpeed', () => {
-  it('把彩云的两位小数取整,与和风的整数对齐', () => {
+  it('把两家的两位小数取整', () => {
     expect(formatWindSpeed(1.77)).toBe('2');
     expect(formatWindSpeed(9)).toBe('9');
   });

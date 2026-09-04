@@ -1,0 +1,53 @@
+# 天气对比应用的 nginx 配置片段(子路径部署)
+#
+# 前端页面:https://<域名>/weather-app/
+# 后端接口:https://<域名>/weather-app/api/...
+#
+# 把下面两个 location 放进你现有的 server 块里即可,可与同一域名下的其他站点共存。
+# 需要替换的地方:<域名>、/var/www/weather-app/ 这个静态文件路径。
+
+    # ---- 后端接口 ----
+    # 必须放在 /weather-app/ 之前(nginx 按最长前缀匹配,这条更长会优先命中,
+    # 但显式写在前面可读性更好)。
+    #
+    # proxy_pass 末尾的 /api/ 很关键:它会把匹配到的 /weather-app/api/ 部分**替换**成
+    # /api/,于是后端收到的是 /api/weather。这正好对应后端 API_PREFIX=api 的设置。
+    # 漏掉末尾的斜杠,后端会收到 /weather-app/api/weather 而 404。
+    location /weather-app/api/ {
+        proxy_pass http://127.0.0.1:3000/api/;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        # 后端 main.ts 里设了 trust proxy,靠这两个头拿到真实客户端 IP。
+        # 不转发的话按 IP 限流会退化成"全站共享一个额度"
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # 后端对上游第三方的超时是 8s,这里留出余量
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    15s;
+    }
+
+    # ---- 前端静态页面 ----
+    location /weather-app/ {
+        alias /var/www/weather-app/;
+
+        # 这是个单页应用,任何路径都回落到 index.html。
+        # 注意 alias + try_files 要用 $uri 而非 $request_uri
+        try_files $uri $uri/ /weather-app/index.html;
+
+        # 带内容哈希的产物可以长缓存;index.html 绝不能缓存,
+        # 否则用户会一直拿到旧版本引用的旧资源名
+        location ~* /assets/.*\.(js|css|woff2?|png|jpg|svg)$ {
+            alias /var/www/weather-app/;
+            try_files $uri =404;
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    location = /weather-app/index.html {
+        alias /var/www/weather-app/index.html;
+        add_header Cache-Control "no-cache, must-revalidate";
+    }

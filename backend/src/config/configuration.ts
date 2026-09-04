@@ -9,6 +9,9 @@ export default () => ({
   qweather: {
     apiHost: process.env.QWEATHER_API_HOST ?? '',
     apiKey: process.env.QWEATHER_API_KEY ?? '',
+    // 走哪版和风接口:'v1'(默认)或 'v7'。v7 已被上游标记弃用,两份实现都留在
+    // providers/qweather/ 下,v1 出问题时改这一个变量即可回滚,不必回滚代码。
+    apiVersion: process.env.QWEATHER_API_VERSION ?? 'v1',
   },
   caiyun: {
     token: process.env.CAIYUN_TOKEN ?? '',
@@ -26,4 +29,9 @@ export default () => ({
     // 三个路由合计是它的 3 倍。默认 20 即合计 60/min/IP,对应原本的限流意图。
     throttleLimit: parseInt(process.env.GEO_THROTTLE_LIMIT ?? '20', 10),
   },
+  // 子路径部署时的接口前缀。默认空 —— 本地开发接口就挂在根路径(/weather、/geo/*),
+  // 与既有行为一致。生产部署在 https://域名/weather-app/ 下时设为 'api',接口变成
+  // /api/weather,由 nginx 把外部的 /weather-app/api/ 转发过来(见 docs/DEPLOYMENT.md)。
+  // 削掉前后斜杠,否则 setGlobalPrefix('/api/') 会拼出 //api/weather 这种路径
+  apiPrefix: (process.env.API_PREFIX ?? '').replace(/^\/+|\/+$/g, ''),
 });
