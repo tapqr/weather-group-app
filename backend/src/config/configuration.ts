@@ -9,6 +9,9 @@ export default () => ({
   qweather: {
     apiHost: process.env.QWEATHER_API_HOST ?? '',
     apiKey: process.env.QWEATHER_API_KEY ?? '',
+    // 走哪版和风接口:'v1'(默认)或 'v7'。v7 已被上游标记弃用,两份实现都留在
+    // providers/qweather/ 下,v1 出问题时改这一个变量即可回滚,不必回滚代码。
+    apiVersion: process.env.QWEATHER_API_VERSION ?? 'v1',
   },
   caiyun: {
     token: process.env.CAIYUN_TOKEN ?? '',

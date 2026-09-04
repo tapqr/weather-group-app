@@ -12,6 +12,7 @@ describe('configuration', () => {
       WEATHER_CACHE_FAILURE_TTL_SECONDS: '30',
       QWEATHER_API_HOST: 'abc123.re.qweatherapi.com',
       QWEATHER_API_KEY: 'qw-key',
+      QWEATHER_API_VERSION: 'v7',
       CAIYUN_TOKEN: 'cy-token',
       THROTTLE_TTL_MS: '120000',
       THROTTLE_LIMIT: '60',
@@ -26,13 +27,20 @@ describe('configuration', () => {
     process.env = originalEnv;
   });
 
+  // 不配就用 v1:v7 已被上游标记弃用,新部署不该默认落到将死的接口上
+  it('defaults the QWeather API version to v1 when unset', () => {
+    delete process.env.QWEATHER_API_VERSION;
+
+    expect(configuration().qweather.apiVersion).toBe('v1');
+  });
+
   it('reads provider credentials, cors origin, cache, and throttle settings from environment variables', () => {
     const config = configuration();
     expect(config).toEqual({
       port: 4000,
       corsOrigin: 'http://localhost:5173',
       cache: { ttlSeconds: 900, failureTtlSeconds: 30 },
-      qweather: { apiHost: 'abc123.re.qweatherapi.com', apiKey: 'qw-key' },
+      qweather: { apiHost: 'abc123.re.qweatherapi.com', apiKey: 'qw-key', apiVersion: 'v7' },
       caiyun: { token: 'cy-token' },
       throttle: { ttlMs: 120000, limit: 60 },
       geo: { cacheTtlSeconds: 43200, throttleTtlMs: 30000, throttleLimit: 90 },

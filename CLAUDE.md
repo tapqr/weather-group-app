@@ -41,7 +41,7 @@ npm run build                  # vue-tsc 类型检查 + vite build,类型错误�
 - **数据源级失败** → `status: 'error'` + `message`。`message` 是**固定的中文用户文案**(`'数据源暂时不可用'`),不是上游异常文本 —— 彩云的 token 拼在 URL 里,原始异常会泄露凭据。前端直接展示这个字符串,不要解析它、不要再包一层同义句。
 - **字段级缺失** → `status` 仍是 `'ok'`,只是某些字段为 `null`/`[]`。**只要拿到任意一部分数据就算成功。**
 
-这个区分在三个地方各实现了一遍,改动时要一起看:`WeatherService.getAggregatedForecast`(跨数据源的 `Promise.allSettled`)、各 Provider 内部(`QWeatherProvider` 对 now/24h/7d 三个子请求再做一次 `allSettled`,三者全挂才抛错)、前端 `ProviderCard.vue`。
+这个区分在三个地方各实现了一遍,改动时要一起看:`WeatherService.getAggregatedForecast`(跨数据源的 `Promise.allSettled`)、各 Provider 内部(`QWeatherProvider` 对 current/hourly/daily 三个子请求再做一次 `allSettled`,三者全挂才抛错)、前端 `ProviderCard.vue`。
 
 ⚠️ **已知可观测性缺口**:Provider 内部的部分子请求失败会被静默吞掉 —— 只留 `[]`/`null`,不打日志。实际撞到过和风 `daily` 返回 0 天而 `current`/`hourly` 正常、日志毫无痕迹的情况。生产上意味着"用户少看到 7 天预报、监控无感知"。
 
@@ -50,7 +50,8 @@ npm run build                  # vue-tsc 类型检查 + vite build,类型错误�
 `NormalizedWeather` 是唯一对外契约(`backend/src/weather/interfaces/weather.interfaces.ts`)。单位统一为 °C / % / **km/h**,`daily[].date` 统一为 `YYYY-MM-DD`。两家原始数据差异很大,都在各自 Provider 里抹平:
 
 - 彩云的 `metric:v2` 单位制返回的**已经是 km/h**(只有 `SI` 才是 m/s),曾因为多乘一次 3.6 导致风速虚高 3.6 倍 —— 这类换算改动务必用真实 API 核对
-- 彩云 `daily[].date` 原始是 `2026-09-02T00:00+08:00`,和风是 `2026-09-02`
+- 两家 `daily[].date` 原始都是 `2026-09-02T00:00+08:00`(和风在 `forecastStartTime`),截成 `YYYY-MM-DD`
+- 和风走 **v1 接口**(`/weather/v1/{current,hourly,daily}/{lat}/{lon}`,v7 已标记弃用)。v1 与 v7 有四处不兼容,改这个 Provider 前先看 `qweather.provider.ts` 里的注释:坐标在路径里且**顺序是 lat/lon**(v7 是 `lon,lat`)、湿度和降水概率是 **0~1 小数**、风速是 **m/s**(v7 是 km/h)、时间戳默认 **UTC**,必须传 `localTime=true`。注意 v1 **没有 `unit` 查询参数**(那是 v7 才有的),单位固定公制,换算只能在 Provider 里做
 - 两家 `daily` 长度不同(和风 7 天、彩云 3 天,免费版差异),**前端不能假设各列行数相等**
 
 新增数据源:在 `providers/` 加一个实现 `WeatherProvider` 接口的类,注册进 `providers.module.ts` 的 `WEATHER_PROVIDERS` 工厂数组,再到前端 `ProviderCard.vue` 的 `PROVIDER_LABELS` 加一行中文名。`WeatherService` 本身不用改。
