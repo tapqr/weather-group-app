@@ -67,9 +67,9 @@ npm run dev
 ```
 
 启动完成后：
-- **H5 前端访问地址**：[http://localhost:5173](http://localhost:5173)
-  > 建议在 Chrome / Edge 中按 `F12` 开启移动端设备模拟器（如 iPhone 14 / Pixel 7），体验绝佳的 H5 竖屏效果。
-- **后端 API 地址**：[http://localhost:3000/api/weather/compare?city=北京](http://localhost:3000/api/weather/compare?city=北京)
+- **H5 前端访问地址**：[http://localhost:5173/agy/](http://localhost:5173/agy/)
+  > 访问根路径 `http://localhost:5173` 会自动提示/跳转至 `/agy/`。建议在 Chrome / Edge 中按 `F12` 开启移动端设备模拟器体验。
+- **后端接口地址**：[http://localhost:3000/agy/api/weather/compare?city=北京](http://localhost:3000/agy/api/weather/compare?city=北京) (同时兼容直接访问 `/api/weather/compare`)
 
 ---
 
@@ -154,3 +154,58 @@ weather-app/
     ├── tailwind.config.js
     └── package.json
 ```
+
+---
+
+## 🌐 子路径部署指南 (如 `domain/agy/`)
+
+本项目已完整原生支持在子路径下运行（例如 `http://your-domain.com/agy/`）。
+
+### 1. 核心环境变量配置
+
+| 位置 | 变量名 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `frontend/.env` | `VITE_BASE_PATH` | `/agy/` | 前端基础路径，对应静态资源与页面挂载子路径 |
+| `frontend/.env` | `VITE_API_BASE_URL` | *(选填)* | 独立 API 接口基地址（留空则自动根据当前子路径拼接） |
+| `backend/.env` | `SUBPATH` | `agy` | 后端服务子路径，自动重写 API 接口并支持静态托管 |
+
+### 2. 部署方案 A：Nginx 反向代理模式（推荐生产使用）
+
+由 Nginx 直接托管前端静态资源并将 API 请求反向代理给 Node.js 后端。完整配置示例可参考 [`nginx.conf.example`](./nginx.conf.example)：
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # 1. 前端 H5 页面托管
+    location /agy/ {
+        alias /path/to/weather-app/frontend/dist/;
+        index index.html;
+        try_files $uri $uri/ /agy/index.html;
+    }
+
+    # 2. 后端 API 反向代理
+    location /agy/api/ {
+        proxy_pass http://127.0.0.1:3000/agy/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### 3. 部署方案 B：后端一体化单进程托管（开箱即测）
+
+只需执行全量构建并启动后端：
+```bash
+# 1. 执行全量构建 (生成 frontend/dist 与 backend/dist)
+npm run build
+
+# 2. 启动生产模式后端
+npm run start:backend
+```
+后端检测到 `frontend/dist` 产物后，将**自动开启静态资源托管与根目录跳转**：
+- 浏览器打开 `http://localhost:3000/` 将自动重定向到 `http://localhost:3000/agy/`
+- API 接口在 `http://localhost:3000/agy/api/weather/compare` 正常对外提供服务

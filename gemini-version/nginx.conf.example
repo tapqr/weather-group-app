@@ -1,0 +1,38 @@
+# Nginx 子路径部署示例 (对应 domain/agy/)
+# 适用场景：前端构建产物由 Nginx 托管，API 请求反向代理给 NestJS 后端
+
+server {
+    listen 80;
+    server_name example.com; # 替换为您自己的域名或服务器 IP
+
+    # 1. 前端 H5 应用托管 (子路径 /agy/)
+    location /agy/ {
+        # 指向前端构建生成的 dist 目录（绝对路径）
+        alias /var/www/weather-app/frontend/dist/;
+        index index.html;
+        # 支持 SPA 路由刷新与 HTML5 History
+        try_files $uri $uri/ /agy/index.html;
+
+        # 静态资源缓存控制 (js, css, 字体, 图片等)
+        location ~* \.(?:ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg)$ {
+            expires 30d;
+            add_header Cache-Control "public, no-transform";
+        }
+    }
+
+    # 2. 后端 API 反向代理 (子路径 /agy/api/)
+    location /agy/api/ {
+        # 转发到 NestJS 后端（默认监听 3000 端口）
+        # 后端内置重写中间件，无论是否带 /agy/ 均能无缝处理
+        proxy_pass http://127.0.0.1:3000/agy/api/;
+        
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}

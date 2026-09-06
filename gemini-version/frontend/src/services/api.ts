@@ -1,8 +1,11 @@
 import axios from 'axios';
 import { WeatherComparisonResponse, CityInfo, ConfigStatusResponse } from '../types/weather';
 
+const basePath = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+const baseURL = import.meta.env.VITE_API_BASE_URL || `${basePath}/api/weather`;
+
 const client = axios.create({
-  baseURL: '/api/weather',
+  baseURL,
   timeout: 10000,
 });
 
