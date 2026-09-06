@@ -18,12 +18,10 @@ module.exports = {
       // 默认生产环境变量 (backend/.env 中的配置会自动合并覆盖)
       env: {
         NODE_ENV: 'production',
-        PORT: 3000,
         SUBPATH: 'agy',
       },
       env_development: {
         NODE_ENV: 'development',
-        PORT: 3000,
         SUBPATH: 'agy',
       },
 
