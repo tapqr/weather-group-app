@@ -19,9 +19,35 @@ function fakeWeather(provider: NormalizedWeather['provider']): NormalizedWeather
   return {
     provider,
     updatedAt: '2026-09-02T00:00:00+08:00',
-    current: { tempC: 20, feelsLikeC: 20, conditionText: '晴', humidityPercent: 50, windSpeedKph: 10 },
-    hourly: [],
-    daily: [],
+    // 这是**契约**:前端照着这个形状写代码,所以这里给全字段(含新增的空气质量、
+    // 气压/能见度/风向风力,以及逐日的昼夜两个天气文案),而不是留空数组
+    current: {
+      tempC: 20,
+      feelsLikeC: 20,
+      conditionText: '晴',
+      humidityPercent: 50,
+      windSpeedKph: 10,
+      windDirectionDeg: 90,
+      windScale: 2,
+      pressureHpa: 1011,
+      visibilityKm: 20,
+      precipMm: 0,
+      airQuality: { aqi: 42, category: '优', pm25: 20 },
+    },
+    hourly: [
+      { time: '2026-09-02T15:00+08:00', tempC: 21, conditionText: '多云', precipitationProbabilityPercent: 20 },
+    ],
+    daily: [
+      {
+        date: '2026-09-02',
+        tempMinC: 15,
+        tempMaxC: 25,
+        conditionText: '小雨',
+        // 昼夜可以不同,这正是加这个字段的原因
+        nightConditionText: '中雨',
+        precipitationProbabilityPercent: 60,
+      },
+    ],
   };
 }
 

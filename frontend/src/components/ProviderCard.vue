@@ -1,9 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ProviderSlot } from '../stores/weather';
-import { classifyCondition, formatTemperature, formatWindSpeed } from '../utils/weather-display';
+import {
+  classifyCondition,
+  formatPrecip,
+  formatPressure,
+  formatTemperature,
+  formatVisibility,
+  formatWindDirection,
+  formatWindScale,
+  formatWindSpeed,
+  resolveDayPart,
+} from '../utils/weather-display';
+import WeatherIcon from './WeatherIcon.vue';
 
 const props = defineProps<{ slot: ProviderSlot }>();
+
+// 昼夜只影响晴天图标画太阳还是月亮。彩云的 CLEAR_DAY/CLEAR_NIGHT 在后端归一化时
+// 已被压成「晴」,昼夜信息那一步就丢了,所以这里用本地时钟判断(见 resolveDayPart)
+const daypart = resolveDayPart(new Date());
 
 const PROVIDER_LABELS: Record<string, string> = {
   qweather: '和风天气',
@@ -65,6 +80,7 @@ function barStyle(tempMinC: number, tempMaxC: number) {
 <template>
   <section class="provider-card" :data-condition="condition">
     <header class="provider-card__head">
+      <WeatherIcon :condition="condition" :daypart="daypart" :size="20" />
       <h3>{{ providerLabel }}</h3>
       <span v-if="slot.status === 'ok' && slot.data?.daily.length" class="provider-card__span">
         {{ slot.data.daily.length }} 天预报
@@ -79,23 +95,51 @@ function barStyle(tempMinC: number, tempMaxC: number) {
     <template v-else-if="slot.data">
       <p v-if="!slot.data.current" class="provider-card__empty">暂无实时数据</p>
       <dl v-else class="provider-card__metrics">
-        <div v-if="slot.data.current.humidityPercent !== null">
-          <dt>湿度</dt>
-          <dd>{{ slot.data.current.humidityPercent }}%</dd>
-        </div>
-        <div v-if="slot.data.current.windSpeedKph !== null">
-          <dt>风速</dt>
-          <dd>{{ formatWindSpeed(slot.data.current.windSpeedKph) }} km/h</dd>
-        </div>
         <div>
           <dt>体感</dt>
           <dd>{{ formatTemperature(slot.data.current.feelsLikeC) }}°</dd>
+        </div>
+        <div>
+          <dt>湿度</dt>
+          <dd>{{ slot.data.current.humidityPercent === null ? '—' : slot.data.current.humidityPercent + '%' }}</dd>
+        </div>
+        <div>
+          <dt>风速</dt>
+          <dd>{{ formatWindSpeed(slot.data.current.windSpeedKph) }}<small>km/h</small></dd>
+        </div>
+        <div>
+          <dt>风向风力</dt>
+          <dd>{{ formatWindDirection(slot.data.current.windDirectionDeg) }} {{ formatWindScale(slot.data.current.windScale) }}<small>级</small></dd>
+        </div>
+        <div>
+          <dt>空气质量</dt>
+          <dd>
+            {{ slot.data.current.airQuality?.aqi ?? '—' }}
+            <small v-if="slot.data.current.airQuality?.category">{{ slot.data.current.airQuality.category }}</small>
+          </dd>
+        </div>
+        <div>
+          <dt>PM2.5</dt>
+          <dd>{{ slot.data.current.airQuality?.pm25 ?? '—' }}<small>μg/m³</small></dd>
+        </div>
+        <div>
+          <dt>气压</dt>
+          <dd>{{ formatPressure(slot.data.current.pressureHpa) }}<small>hPa</small></dd>
+        </div>
+        <div>
+          <dt>能见度</dt>
+          <dd>{{ formatVisibility(slot.data.current.visibilityKm) }}<small>km</small></dd>
+        </div>
+        <div>
+          <dt>降水</dt>
+          <dd>{{ formatPrecip(slot.data.current.precipMm) }}<small>mm</small></dd>
         </div>
       </dl>
 
       <ul v-if="slot.data.hourly.length > 0" class="provider-card__hourly">
         <li v-for="hour in slot.data.hourly" :key="hour.time">
           <span class="hour-time">{{ formatHour(hour.time) }}</span>
+          <WeatherIcon :condition="classifyCondition(hour.conditionText)" :daypart="daypart" :size="18" />
           <span class="hour-temp">{{ formatTemperature(hour.tempC) }}°</span>
           <span class="hour-text">{{ hour.conditionText }}</span>
         </li>
@@ -105,7 +149,11 @@ function barStyle(tempMinC: number, tempMaxC: number) {
         <li v-for="(day, index) in slot.data.daily" :key="day.date">
           <span class="day-name">{{ formatDay(day.date, index) }}</span>
           <span class="day-date">{{ formatDate(day.date) }}</span>
-          <span class="day-text">{{ day.conditionText }}</span>
+          <span class="day-text">
+            {{ day.conditionText }}<template v-if="day.nightConditionText">
+              <span class="day-night">/{{ day.nightConditionText }}</span>
+            </template>
+          </span>
           <span class="day-low">{{ formatTemperature(day.tempMinC) }}°</span>
           <span class="day-track">
             <span class="day-bar" :style="barStyle(day.tempMinC, day.tempMaxC)"></span>
@@ -203,9 +251,13 @@ function barStyle(tempMinC: number, tempMaxC: number) {
 
 .provider-card__head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 8px;
+}
+
+/* 天数说明推到最右 */
+.provider-card__head h3 {
+  margin-right: auto;
 }
 
 .provider-card__head h3 {
@@ -245,9 +297,14 @@ function barStyle(tempMinC: number, tempMaxC: number) {
   color: var(--ink-dim);
 }
 
+/*
+ * 指标从 3 项涨到 9 项,原来的横向 flex 会挤成一坨。
+ * 用 auto-fit 网格:窄屏 3 列、宽屏 4 列自动切换,加指标不用改列数。
+ */
 .provider-card__metrics {
-  display: flex;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 12px 10px;
   margin: 0;
 }
 
@@ -255,17 +312,30 @@ function barStyle(tempMinC: number, tempMaxC: number) {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .provider-card__metrics dt {
   font-size: 11px;
   color: var(--ink-faint);
+  white-space: nowrap;
 }
 
 .provider-card__metrics dd {
   margin: 0;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 单位和类别用小字弱化,让数值本身成为视觉主体 */
+.provider-card__metrics dd small {
+  font-size: 10px;
+  color: var(--ink-faint);
+  margin-left: 2px;
+  font-weight: 400;
 }
 
 /* 逐时:横向滚动,24 条全给,不截断 */
@@ -287,7 +357,7 @@ function barStyle(tempMinC: number, tempMaxC: number) {
   flex: none;
   scroll-snap-align: start;
   width: 58px;
-  padding: 8px 4px;
+  padding: 8px 4px 7px;
   border-radius: var(--radius-chip);
   background: var(--card-veil);
   display: flex;
@@ -327,6 +397,11 @@ function barStyle(tempMinC: number, tempMaxC: number) {
   padding: 7px 0;
   font-size: 13px;
   border-top: 1px solid var(--card-veil);
+}
+
+/* 夜间天气跟在白天后面,弱化一档 —— 白天那个才是这一行的主信息 */
+.day-night {
+  color: var(--ink-faint);
 }
 
 .provider-card__daily li:first-child {

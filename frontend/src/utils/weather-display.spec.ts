@@ -1,4 +1,14 @@
-import { classifyCondition, formatTemperature, formatWindSpeed, resolveDayPart } from './weather-display';
+import {
+  classifyCondition,
+  formatPrecip,
+  formatPressure,
+  formatTemperature,
+  formatVisibility,
+  formatWindDirection,
+  formatWindScale,
+  formatWindSpeed,
+  resolveDayPart,
+} from './weather-display';
 
 describe('classifyCondition', () => {
   // 彩云的 20 项文案已确认与官方 skycon 枚举一一对应(2026-09-03 核查),
@@ -135,5 +145,84 @@ describe('formatWindSpeed', () => {
 
   it('缺失时显示占位符', () => {
     expect(formatWindSpeed(null)).toBe('—');
+  });
+});
+
+describe('formatWindDirection', () => {
+  it('maps degrees to the eight compass points', () => {
+    expect(formatWindDirection(0)).toBe('北风');
+    expect(formatWindDirection(45)).toBe('东北风');
+    expect(formatWindDirection(90)).toBe('东风');
+    expect(formatWindDirection(135)).toBe('东南风');
+    expect(formatWindDirection(180)).toBe('南风');
+    expect(formatWindDirection(225)).toBe('西南风');
+    expect(formatWindDirection(270)).toBe('西风');
+    expect(formatWindDirection(315)).toBe('西北风');
+  });
+
+  it('wraps around so degrees just under 360 read as north', () => {
+    // 350° 和 10° 都该落回"北",不能因为 350/45 = 7.8 就跑到"西北"
+    expect(formatWindDirection(350)).toBe('北风');
+    expect(formatWindDirection(359)).toBe('北风');
+    expect(formatWindDirection(10)).toBe('北风');
+    expect(formatWindDirection(360)).toBe('北风');
+  });
+
+  it('agrees with the compass names QWeather reports for the same degrees', () => {
+    // 2026-09-07 实测和风同时给了 degree 和 compass,用它交叉验证:
+    //   degree 233 / compass "sw"、degree 58 / compass "ene"
+    // ene 属于 16 方位制,在 8 方位制下归入东北 —— 这正是不用上游 compass 的原因:
+    // 一家用 compass、一家用角度换算,两家分档口径就不一样了
+    expect(formatWindDirection(233)).toBe('西南风');
+    expect(formatWindDirection(58)).toBe('东北风');
+  });
+
+  it('handles degrees outside the 0-360 range instead of producing undefined', () => {
+    expect(formatWindDirection(-90)).toBe('西风');
+    expect(formatWindDirection(450)).toBe('东风');
+  });
+
+  it('reports an em dash when the direction is missing', () => {
+    expect(formatWindDirection(null)).toBe('—');
+    expect(formatWindDirection(Number.NaN)).toBe('—');
+  });
+});
+
+describe('formatPressure / formatVisibility', () => {
+  it('rounds away the precision that unit conversion introduced', () => {
+    // 1004.9758 是彩云的帕值 ÷100 的产物;21.85 是和风的米值 ÷1000。
+    // 小数位是换算副产品,不是精度
+    expect(formatPressure(1004.9758)).toBe('1005');
+    expect(formatPressure(1011.66)).toBe('1012');
+    expect(formatVisibility(20.15)).toBe('20');
+    expect(formatVisibility(21.85)).toBe('22');
+  });
+
+  it('reports an em dash when the reading is missing', () => {
+    expect(formatPressure(null)).toBe('—');
+    expect(formatVisibility(null)).toBe('—');
+  });
+});
+
+describe('formatPrecip', () => {
+  it('keeps one decimal so a drizzle is not rounded down to nothing', () => {
+    // 这里刻意与温度/风速的取整策略不同:降水量常在 0~1 之间,
+    // 取整会把"0.4mm 的小雨"和"没下雨"显示成同一个数
+    expect(formatPrecip(0.4)).toBe('0.4');
+    expect(formatPrecip(0)).toBe('0.0');
+    expect(formatPrecip(12.34)).toBe('12.3');
+  });
+
+  it('reports an em dash when the reading is missing', () => {
+    expect(formatPrecip(null)).toBe('—');
+  });
+});
+
+describe('formatWindScale', () => {
+  it('shows force 0 as a real reading, not as missing data', () => {
+    // 0 级是"无风"这个观测结果;后端在拿不到风速时给的是 null。两者含义完全不同
+    expect(formatWindScale(0)).toBe('0');
+    expect(formatWindScale(3)).toBe('3');
+    expect(formatWindScale(null)).toBe('—');
   });
 });

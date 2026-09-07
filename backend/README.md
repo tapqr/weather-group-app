@@ -30,12 +30,34 @@
   {
     provider: "qweather" | "caiyun";
     updatedAt: string; // ISO 时间戳
-    current: { tempC, feelsLikeC, conditionText, humidityPercent, windSpeedKph } | null;
+    current: {
+      tempC; feelsLikeC; conditionText; humidityPercent; windSpeedKph;
+      windDirectionDeg;   // 0~360,只给角度不给方位名,见下
+      windScale;          // 蒲福 0~12
+      pressureHpa;        // 统一 hPa
+      visibilityKm;       // 统一 km
+      precipMm;
+      airQuality: { aqi; category; pm25 } | null;   // 国标 AQI
+    } | null;
     hourly: Array<{ time, tempC, conditionText, precipitationProbabilityPercent }>;
-    daily: Array<{ date, tempMinC, tempMaxC, conditionText, precipitationProbabilityPercent }>;
+    daily: Array<{ date, tempMinC, tempMaxC, conditionText, nightConditionText, precipitationProbabilityPercent }>;
   }
   ```
   `daily[].date` 统一归一化为 `YYYY-MM-DD`(两家原始格式不同,已在后端统一处理)。`windSpeedKph` 两家单位都是 km/h,可以直接并排比较。
+
+  几个字段的口径值得单独说明,否则很容易并排比出假分歧:
+
+  | 字段 | 说明 |
+  |---|---|
+  | `pressureHpa` | 统一 hPa。彩云原始给的是**帕**(实测 `100497.58`),已在 Provider 里 ÷100 |
+  | `visibilityKm` | 统一 km。和风原始给的是**米**(实测 `21850`),已在 Provider 里 ÷1000 |
+  | `windDirectionDeg` | **只给角度**。和风另有英文缩写方位(`compass: "ene"`),彩云没有 —— 一家用 compass、一家用角度换算会导致分档口径不同(16 方位 vs 8 方位),所以统一只出角度,中文方位名由前端用同一个函数算 |
+  | `windScale` | **来源不对称**:和风是上游直接给的 `wind.scale`,彩云不提供此字段,由后端按蒲福风级标准表从 km/h 反算。两家风速接近时等级可能差一级,那是换算边界不是数据源分歧 |
+  | `airQuality` | 取**国标**(彩云 `aqi.chn`、和风 `indexes[code='cn-mee']`),两家才可比。整块为 `null` 表示这家没拿到 |
+  | `nightConditionText` | 夜间段天气,与白天段的 `conditionText` 配成一对(和风 `daytime`/`nighttime`,彩云 `skycon_08h_20h`/`skycon_20h_32h`)。拿不到时为 `null`,**不会**用白天的值填充 |
+
+  ⚠️ **`hourly` 的起始时刻两家不一定相同**(实测同一次请求彩云从 15:00 起、和风从 16:00 起),数组长度相同也不代表时刻对齐。跨数据源对比必须**按 `time` 对齐,不能按数组下标**。
+
   `current`/`hourly`/`daily` 里的字段允许是 `null`(某些字段该数据源确实没有权限返回),但**不代表这个数据源不可用**——只要拿到了任意一部分数据就是 `status: "ok"`。
 - `status: "error"`:附带 `message`(面向用户的稳定文案,如"数据源暂时不可用"),表示这家数据源**整体**请求失败(Key 过期、网络不通、限流等)。前端应该展示一张灰色的"该数据源暂时不可用"卡片,而不是报错崩溃;上游的真实失败原因只记在后端日志里,不会透传给浏览器。
 
@@ -90,10 +112,13 @@
 对外都叫 `qweather`,**切版本不改 `GET /weather` 的响应契约**,前端无需改动。v1 真出问题时把这个变量改成 `v7`
 重启即可回滚,不必回滚代码。写成别的值会**启动失败**,不会静默退回默认值。
 
-两版的上游差异都在各自 Provider 内部抹平,归一化结果一致,只有两点用户可见:
+两版的上游差异都在各自 Provider 内部抹平,归一化结果一致,但有几点用户可见:
 
 - v1 的逐天预报**带降水概率**,v7 没有该字段(`daily[].precipitationProbabilityPercent` 在 v7 下恒为 `null`)
 - v1 的数值精度更高(如 `31.76`),v7 返回整数;前端统一四舍五入显示,不影响观感
+- **v7 下 `airQuality` 恒为 `null`**。v7 的空气质量接口 `/v7/air/now` 已被上游停用(2026-09-07 实测返回 `403 Deprecated`),只有 v1 的 `/airquality/v1/current/{lat}/{lon}` 可用。回滚到 v7 会让和风那一侧的 AQI/PM2.5 整栏显示"—"
+
+⚠️ 还有一点在回滚前必须知道:v7 Provider 里 `windDirectionDeg`/`windScale`/`pressureHpa`/`visibilityKm`/`precipMm`/`nightConditionText` 这几个字段的映射是**按 v7 文档写的、未经实测** —— v7 现在整个打不通,没法核对。真要启用 v7,先拿一个能用的 Key 逐字段验一遍,尤其是单位(v7 的 `vis` 是 km 而 v1 是米,`windSpeed` 是 km/h 而 v1 是 m/s)。
 
 凭据两版共用,`QWEATHER_API_KEY` 走 `X-QW-Api-Key` 请求头对 v1 同样有效。注意和风文档称 API Key
 自 **2027-01-01** 起会被限制每日请求量,届时需迁到 JWT(`geo` 模块复用同一把 Key,要一起评估)。
@@ -107,6 +132,15 @@
 
 - **缓存**:内存缓存(带 LRU 容量上限,防止无界增长),key 是请求坐标四舍五入到小数点后 2 位(约 1.1km 精度)。命中缓存直接返回,不再请求第三方。聚合结果里只要有任意一家成功就按 `WEATHER_CACHE_TTL_SECONDS` 缓存;两家全部失败则只按 `WEATHER_CACHE_FAILURE_TTL_SECONDS` 短时缓存。
 - **限流**:基于来源 IP,每 `THROTTLE_TTL_MS` 毫秒内最多 `THROTTLE_LIMIT` 次请求,超出返回 `429`。
+
+⚠️ **一次缓存未命中会打出 5 个上游请求**,评估免费额度时要按这个倍数算,而不是按 `/weather` 的请求数:
+
+| 数据源 | 上游请求 |
+|---|---|
+| 和风 | 4 个:`/weather/v1/current`、`/hourly`、`/daily`、`/airquality/v1/current` |
+| 彩云 | 1 个:`v2.6/.../weather` 综合接口(实况、逐时、逐日、空气质量全在这一次里) |
+
+所以彩云的 AQI 是零额外成本的,和风的 AQI 是第 4 个独立子请求 —— 这个不对称在评估两家额度消耗时要分开算。
 
 `/geo/*` 三个路由的规则与 `/weather` **相反**,不要类比:
 

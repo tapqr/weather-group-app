@@ -8,7 +8,21 @@ function fakeWeather(provider: NormalizedWeather['provider']): NormalizedWeather
   return {
     provider,
     updatedAt: '2026-09-02T00:00:00+08:00',
-    current: { tempC: 20, feelsLikeC: 20, conditionText: '晴', humidityPercent: 50, windSpeedKph: 10 },
+    // 这份 fake 只为满足契约形状 —— 本文件测的是跨数据源聚合、缓存与降级,
+    // 不关心具体字段值。字段含义见 interfaces/weather.interfaces.ts
+    current: {
+      tempC: 20,
+      feelsLikeC: 20,
+      conditionText: '晴',
+      humidityPercent: 50,
+      windSpeedKph: 10,
+      windDirectionDeg: 90,
+      windScale: 2,
+      pressureHpa: 1011,
+      visibilityKm: 20,
+      precipMm: 0,
+      airQuality: { aqi: 42, category: '优', pm25: 20 },
+    },
     hourly: [],
     daily: [],
   };
