@@ -29,12 +29,14 @@ describe('GET /weather (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
+    // 顺序与 providers.module.ts 的真实注册顺序保持一致(彩云在前),
+    // 这样这份契约测试锁定的形状就是前端实际会收到的形状
     const okProvider: WeatherProvider = {
-      name: 'qweather',
-      getForecast: vi.fn().mockResolvedValue(fakeWeather('qweather')),
+      name: 'caiyun',
+      getForecast: vi.fn().mockResolvedValue(fakeWeather('caiyun')),
     };
     const failingProvider: WeatherProvider = {
-      name: 'caiyun',
+      name: 'qweather',
       getForecast: vi.fn().mockRejectedValue(new Error('upstream unavailable')),
     };
 
@@ -57,8 +59,8 @@ describe('GET /weather (e2e)', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       results: [
-        { provider: 'qweather', status: 'ok', data: fakeWeather('qweather') },
-        { provider: 'caiyun', status: 'error', message: expect.any(String) },
+        { provider: 'caiyun', status: 'ok', data: fakeWeather('caiyun') },
+        { provider: 'qweather', status: 'error', message: expect.any(String) },
       ],
     });
   });

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
+import { describeUpstreamError } from './upstream-error.js';
 import {
   NormalizedCurrentWeather,
   NormalizedDailyEntry,
@@ -9,7 +10,7 @@ import {
   NormalizedWeather,
   WeatherProvider,
   WeatherQuery,
-} from '../interfaces/weather.interfaces.js';
+} from '../../interfaces/weather.interfaces.js';
 
 interface QWeatherNowResponse {
   now: { temp: string; feelsLike?: string; text: string; humidity?: string; windSpeed?: string };
@@ -23,20 +24,8 @@ interface QWeatherDailyResponse {
   daily: Array<{ fxDate: string; tempMax: string; tempMin: string; textDay: string }>;
 }
 
-// 和风天气用 Error Code v2:失败时返回 HTTP 4xx/5xx,body 形如
-// { error: { status, title, detail, invalidParams? } }。axios 的 message 只有
-// "Request failed with status code 400",会丢掉 detail 里那句真正有用的说明。
-export function describeUpstreamError(error: unknown): string {
-  const detail = (error as { response?: { data?: { error?: { title?: string; detail?: string } } } })?.response?.data
-    ?.error;
-  if (detail?.title) {
-    return detail.detail ? `${detail.title}: ${detail.detail}` : detail.title;
-  }
-  return error instanceof Error ? error.message : String(error);
-}
-
 @Injectable()
-export class QWeatherProvider implements WeatherProvider {
+export class QWeatherV7Provider implements WeatherProvider {
   readonly name = 'qweather' as const;
   private readonly apiHost: string;
   private readonly apiKey: string;

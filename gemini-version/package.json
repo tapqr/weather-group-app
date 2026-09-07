@@ -1,0 +1,16 @@
+{
+  "name": "weather-compare-app-gemini",
+  "version": "1.0.0",
+  "description": "彩云天气 vs 和风天气 双源预报对比 H5 应用",
+  "scripts": {
+    "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm --prefix backend run start:dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "start:backend": "npm --prefix backend run start:prod"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

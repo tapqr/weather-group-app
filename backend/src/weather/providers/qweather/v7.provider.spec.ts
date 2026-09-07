@@ -1,6 +1,6 @@
 import { of, throwError } from 'rxjs';
 import type { Mock } from 'vitest';
-import { describeUpstreamError, QWeatherProvider } from './qweather.provider.js';
+import { QWeatherV7Provider } from './v7.provider.js';
 
 function buildProvider(getImpl: Mock) {
   const httpService = { get: getImpl } as any;
@@ -11,10 +11,10 @@ function buildProvider(getImpl: Mock) {
         'qweather.apiKey': 'test-key',
       })[key],
   } as any;
-  return new QWeatherProvider(httpService, configService);
+  return new QWeatherV7Provider(httpService, configService);
 }
 
-describe('QWeatherProvider', () => {
+describe('QWeatherV7Provider', () => {
   it('normalizes current, hourly, and daily data from QWeather v7 responses', async () => {
     const getImpl = vi
       .fn()
@@ -110,30 +110,5 @@ describe('QWeatherProvider', () => {
     await expect(provider.getForecast({ lat: 39.92, lon: 116.41 })).rejects.toThrow(
       /now failed.*24h failed.*7d failed/,
     );
-  });
-});
-
-describe('describeUpstreamError', () => {
-  it('extracts the human-readable title/detail from a QWeather Error Code v2 axios error', () => {
-    const axiosLikeError = {
-      response: {
-        data: {
-          error: {
-            status: 400,
-            title: 'Invalid Parameter',
-            detail: 'Invalid parameter, please check your request.',
-          },
-        },
-      },
-      message: 'Request failed with status code 400',
-    };
-
-    expect(describeUpstreamError(axiosLikeError)).toBe(
-      'Invalid Parameter: Invalid parameter, please check your request.',
-    );
-  });
-
-  it('falls back to error.message for a plain Error without an upstream error body', () => {
-    expect(describeUpstreamError(new Error('network timeout'))).toBe('network timeout');
   });
 });

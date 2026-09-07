@@ -37,6 +37,12 @@ function formatDay(date: string, index: number): string {
   return Number.isNaN(parsed.getTime()) ? date : WEEKDAYS[parsed.getDay()];
 }
 
+// 直接取字符串里的 MM/DD,不走 Date —— 上游给的就是当地日期,时区换算只会把它挪走
+function formatDate(date: string): string {
+  const match = date.match(/^\d{4}-(\d{2})-(\d{2})/);
+  return match ? `${match[1]}/${match[2]}` : date;
+}
+
 // 逐日温度条:把所有天的最低~最高映射到同一根标尺上,长短和位置才有可比性
 const dailyRange = computed(() => {
   const days = props.slot.data?.daily ?? [];
@@ -98,6 +104,7 @@ function barStyle(tempMinC: number, tempMaxC: number) {
       <ul v-if="slot.data.daily.length > 0" class="provider-card__daily">
         <li v-for="(day, index) in slot.data.daily" :key="day.date">
           <span class="day-name">{{ formatDay(day.date, index) }}</span>
+          <span class="day-date">{{ formatDate(day.date) }}</span>
           <span class="day-text">{{ day.conditionText }}</span>
           <span class="day-low">{{ formatTemperature(day.tempMinC) }}°</span>
           <span class="day-track">
@@ -314,7 +321,7 @@ function barStyle(tempMinC: number, tempMaxC: number) {
 /* 逐日:两家天数不同(和风 7 天、彩云 3 天),各自按自己的长度渲染 */
 .provider-card__daily li {
   display: grid;
-  grid-template-columns: 42px 1fr 34px 72px 34px;
+  grid-template-columns: 42px 44px 1fr 34px 72px 34px;
   align-items: center;
   gap: 8px;
   padding: 7px 0;
@@ -328,6 +335,12 @@ function barStyle(tempMinC: number, tempMaxC: number) {
 
 .day-name {
   color: var(--ink);
+}
+
+.day-date {
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .day-text {

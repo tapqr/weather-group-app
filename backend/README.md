@@ -13,11 +13,15 @@
 ```json
 {
   "results": [
-    { "provider": "qweather", "status": "ok", "data": { "...": "见下方" } },
-    { "provider": "caiyun", "status": "error", "message": "数据源暂时不可用" }
+    { "provider": "caiyun", "status": "ok", "data": { "...": "见下方" } },
+    { "provider": "qweather", "status": "error", "message": "数据源暂时不可用" }
   ]
 }
 ```
+
+`results` 的**顺序是稳定的**:彩云天气在前、和风天气在后,由 `providers.module.ts` 里
+`WEATHER_PROVIDERS` 的注册顺序决定(有 `providers.module.spec.ts` 锁定)。前端顶部对比区
+和卡片的先后直接跟随这个顺序 —— 调整它会改变界面上两家的左右位置。
 
 `results` 里每个数据源一条记录,`status` 只有两种取值:
 
@@ -69,6 +73,7 @@
 | `WEATHER_CACHE_FAILURE_TTL_SECONDS` | 全部数据源都失败时的缓存 TTL(秒,故意设得比正常 TTL 短,避免故障期间每个请求都去重试刷穿免费额度,又能在第三方恢复后很快自愈) | `60` | 否 |
 | `QWEATHER_API_HOST` | 和风天气**专属** API Host(不是文档里的公共域名,见下文) | 空 | **是**(启动时会校验,缺失直接拒绝启动) |
 | `QWEATHER_API_KEY` | 和风天气 API Key | 空 | **是**(同上) |
+| `QWEATHER_API_VERSION` | 走哪版和风接口,只接受 `v1` / `v7`(见下文) | `v1` | 否 |
 | `CAIYUN_TOKEN` | 彩云天气 Token | 空 | **是**(同上) |
 | `THROTTLE_TTL_MS` | 限流统计窗口(毫秒) | `60000` | 否 |
 | `THROTTLE_LIMIT` | 每个窗口内每个来源 IP 允许的请求数 | `30` | 否 |
@@ -77,6 +82,21 @@
 | `GEO_THROTTLE_LIMIT` | 地理接口每窗口每 IP 的请求数。**与 `/weather` 的额度相互独立**,且是 `/geo/reverse`、`/geo/search`、`/geo/top` **各自**的额度(`@nestjs/throttler` 按 handler 生成限流 key)—— 三个路由合计是这个值的 3 倍 | `20` | 否 |
 
 `QWEATHER_API_HOST`/`QWEATHER_API_KEY`/`CAIYUN_TOKEN` 三项缺失任意一项,应用启动时会直接抛错退出(不会带着空凭据"看起来很健康"地跑起来)。
+
+### 和风接口版本(`QWEATHER_API_VERSION`)
+
+和风的 WebAPI v7 已被上游标记弃用(文档原话:「WebAPI v7版本的城市实时天气即将弃用,请使用实时天气 v1代替」),
+本服务默认走 v1。两份实现都保留在 `src/weather/providers/qweather/`(`v1.provider.ts` / `v7.provider.ts`),
+对外都叫 `qweather`,**切版本不改 `GET /weather` 的响应契约**,前端无需改动。v1 真出问题时把这个变量改成 `v7`
+重启即可回滚,不必回滚代码。写成别的值会**启动失败**,不会静默退回默认值。
+
+两版的上游差异都在各自 Provider 内部抹平,归一化结果一致,只有两点用户可见:
+
+- v1 的逐天预报**带降水概率**,v7 没有该字段(`daily[].precipitationProbabilityPercent` 在 v7 下恒为 `null`)
+- v1 的数值精度更高(如 `31.76`),v7 返回整数;前端统一四舍五入显示,不影响观感
+
+凭据两版共用,`QWEATHER_API_KEY` 走 `X-QW-Api-Key` 请求头对 v1 同样有效。注意和风文档称 API Key
+自 **2027-01-01** 起会被限制每日请求量,届时需迁到 JWT(`geo` 模块复用同一把 Key,要一起评估)。
 
 ## 申请凭据
 

@@ -54,7 +54,16 @@ npm run dev
 | `GET /geo/search?q=` | 城市搜索(支持中文与拼音) |
 | `GET /geo/top` | 热门城市 |
 
-完整的响应结构、环境变量表、缓存与限流策略、部署注意事项见 [`backend/README.md`](backend/README.md)。
+完整的响应结构、环境变量表、缓存与限流策略见 [`backend/README.md`](backend/README.md)。
+
+## 部署
+
+生产环境用 nginx + PM2 部署在子路径下(页面 `/weather-app/`,接口 `/weather-app/api/`),
+完整步骤、配置示例与故障对照见 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)。
+
+有两件事在那里反复强调,这里也提一句:前端的站点前缀是**构建时**写死的,改了必须重新构建;
+后端**不能开 cluster 或多实例** —— 限流和缓存都是进程内状态,多进程会让限流额度翻倍、
+缓存命中率骤降,进而刷穿上游免费额度。
 
 ## 两个设计要点
 
