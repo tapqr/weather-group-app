@@ -85,7 +85,7 @@ npm run build                  # vue-tsc 类型检查 + vite build,类型错误�
 
 唯一的跨数据源区块是逐时曲线,数据来自 `utils/align.ts` 的 `alignHourly`:按时间戳对齐(**不是按数组下标**,见上面归一化那节的警告),缺失处留 `null` 让曲线断开而不是补值。`ProviderCard` 只渲染它自己那家的数据,没有任何跨数据源的入参。
 
-曲线的纯几何计算在 `utils/chart.ts`(断线、指针位置换算、默认读数时刻),刻意与组件分离:jsdom 不做布局(`getBoundingClientRect()` 恒返回 0、`PointerEvent.clientX` 只读),隔着 DOM 测不了坐标,抽成纯函数才能直接对数字断言。为什么不引图表库见 [`docs/adr/0001-hand-rolled-svg-charts.md`](docs/adr/0001-hand-rolled-svg-charts.md)。
+曲线的纯几何计算在 `utils/chart.ts`(断线、y 轴刻度、指针位置换算、默认读数时刻),刻意与组件分离:jsdom 不做布局(`getBoundingClientRect()` 恒返回 0、`PointerEvent.clientX` 只读),隔着 DOM 测不了坐标,抽成纯函数才能直接对数字断言。为什么不引图表库见 [`docs/adr/0001-hand-rolled-svg-charts.md`](docs/adr/0001-hand-rolled-svg-charts.md)。
 
 天气图标(`WeatherIcon.vue`)复用现有的 `classifyCondition()` 分类,**不做"上游天气码 → 图标"的映射表** —— 那需要维护两张表(和风 `condition.code`、彩云 `skycon`),而分类器本来就是为图标预留的。晴天画太阳还是月亮由 `resolveDayPart()` 按本地时钟决定,因为彩云的 `CLEAR_DAY`/`CLEAR_NIGHT` 在后端归一化时已被压成「晴」,昼夜信息那一步就丢了。
 

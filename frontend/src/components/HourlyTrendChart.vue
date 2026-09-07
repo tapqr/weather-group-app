@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { AlignedHourly } from '../utils/align';
-import { buildLinePath, firstCompleteIndex, hourIndexFromRatio } from '../utils/chart';
+import { buildLinePath, buildTempAxis, firstCompleteIndex, hourIndexFromRatio } from '../utils/chart';
 import { formatTemperature } from '../utils/weather-display';
 
 /*
@@ -20,6 +20,12 @@ const props = defineProps<{ hourly: AlignedHourly }>();
 
 /** 每个时刻占的横向像素。24 点约 720px,在手机上横向滚动 —— 与卡片里那份列表一致的交互 */
 const STEP = 32;
+/**
+ * y 轴刻度列的宽度。它是**独立于滚动区**的一个窄 SVG ——
+ * 刻度画在滚动区里的话,横向滑动时数字会跟着滑出视野,那就白标了。
+ * 两个 SVG 共用同一个 HEIGHT 和同一个 yOf(),所以刻度和网格线严格对齐。
+ */
+const Y_AXIS_WIDTH = 30;
 const HEIGHT = 168;
 const PAD_TOP = 26;
 const PAD_BOTTOM = 34;
@@ -28,24 +34,21 @@ const POP_BAND = 26;
 
 const chartWidth = computed(() => Math.max(props.hourly.axis.length * STEP, STEP));
 
-/** 温度刻度取所有数据源的并集范围,两条线才在同一根标尺上可比 */
-const tempRange = computed(() => {
-  const values = props.hourly.series.flatMap((s) => s.temps).filter((t): t is number => t !== null);
-  if (values.length === 0) return null;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  // span 为 0(所有时刻同温)时给 1,避免除零把所有点挤到同一行
-  return { min, max, span: max - min || 1 };
-});
+/**
+ * 温度刻度取**所有数据源的并集范围**,两条线才落在同一根标尺上 ——
+ * 各家各算一套刻度的话,两条线的垂直距离就不再代表温差了。
+ * 范围与刻度的取值策略见 utils/chart.ts 的 buildTempAxis。
+ */
+const tempAxis = computed(() => buildTempAxis(props.hourly.series.flatMap((s) => s.temps)));
 
 function xOf(index: number): number {
   return index * STEP + STEP / 2;
 }
 
 function yOf(tempC: number): number {
-  const range = tempRange.value!;
+  const axis = tempAxis.value!;
   const usable = HEIGHT - PAD_TOP - PAD_BOTTOM - POP_BAND;
-  return PAD_TOP + ((range.max - tempC) / range.span) * usable;
+  return PAD_TOP + ((axis.max - tempC) / axis.span) * usable;
 }
 
 // 断线逻辑在 utils/chart.ts 里(那里能直接对数字断言;jsdom 不做布局,
@@ -147,7 +150,7 @@ function onPointer(event: PointerEvent) {
 </script>
 
 <template>
-  <section v-if="tempRange" class="trend">
+  <section v-if="tempAxis" class="trend">
     <header class="trend__head">
       <h2>逐时气温对比</h2>
       <div class="trend__readout">
@@ -166,7 +169,32 @@ function onPointer(event: PointerEvent) {
       </div>
     </header>
 
-    <div class="trend__scroll">
+    <div class="trend__plot">
+      <!--
+        y 轴独立成一个不滚动的窄 SVG。刻度画在右侧滚动区里的话,
+        横向滑动时数字会跟着滑出视野。两个 SVG 共用 HEIGHT 与 yOf(),所以严格对齐
+      -->
+      <svg
+        class="trend__yaxis"
+        :width="Y_AXIS_WIDTH"
+        :height="HEIGHT"
+        :viewBox="`0 0 ${Y_AXIS_WIDTH} ${HEIGHT}`"
+        aria-hidden="true"
+      >
+        <text
+          v-for="tick in tempAxis.ticks"
+          :key="tick.label"
+          class="trend__ytick"
+          :x="Y_AXIS_WIDTH - 4"
+          :y="yOf(tick.value)"
+          text-anchor="end"
+          dominant-baseline="middle"
+        >
+          {{ tick.label }}
+        </text>
+      </svg>
+
+      <div class="trend__scroll">
       <svg
         class="trend__svg"
         :width="chartWidth"
@@ -177,6 +205,17 @@ function onPointer(event: PointerEvent) {
         @pointermove="onPointer"
         @pointerdown="onPointer"
       >
+        <!-- 水平网格线,与左侧刻度一一对应。画在最底层,不遮曲线 -->
+        <line
+          v-for="tick in tempAxis.ticks"
+          :key="`grid-${tick.label}`"
+          class="trend__grid"
+          x1="0"
+          :x2="chartWidth"
+          :y1="yOf(tick.value)"
+          :y2="yOf(tick.value)"
+        />
+
         <!-- 选中时刻的竖向指示线 -->
         <line
           class="trend__cursor"
@@ -233,6 +272,7 @@ function onPointer(event: PointerEvent) {
           {{ tick.label.slice(0, 2) }}时
         </text>
       </svg>
+      </div>
     </div>
   </section>
 </template>
@@ -312,10 +352,34 @@ function onPointer(event: PointerEvent) {
   align-self: center;
 }
 
+/* 左侧固定的刻度列 + 右侧横向滚动的绘图区 */
+.trend__plot {
+  display: flex;
+  align-items: flex-start;
+  padding: 0 16px 0 4px;
+}
+
+.trend__yaxis {
+  flex: none;
+  display: block;
+}
+
+.trend__ytick {
+  fill: var(--ink-faint);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend__grid {
+  stroke: var(--card-veil);
+  stroke-width: 1;
+}
+
 .trend__scroll {
+  flex: 1;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 0 16px;
 }
 
 .trend__scroll::-webkit-scrollbar {

@@ -1,4 +1,4 @@
-import { buildLinePath, firstCompleteIndex, hourIndexFromRatio } from './chart';
+import { buildLinePath, buildTempAxis, firstCompleteIndex, hourIndexFromRatio } from './chart';
 
 const xOf = (i: number) => i * 10;
 const yOf = (v: number) => 100 - v;
@@ -89,5 +89,59 @@ describe('firstCompleteIndex', () => {
 
   it('falls back to 0 when there are no series', () => {
     expect(firstCompleteIndex([], 0)).toBe(0);
+  });
+});
+
+describe('buildTempAxis', () => {
+  it('spans the real data range plus a degree of padding on each side', () => {
+    // 不做"整齐刻度":19.96~28.86 保持原样各留 1°,而不是扩张到 15~30 ——
+    // 后者会把曲线压到画布高度的 59%,两家相差 1° 时垂直距离从 9px 掉到 5px
+    const axis = buildTempAxis([19.96, 24, 28.86])!;
+
+    expect(axis.min).toBeCloseTo(18.96);
+    expect(axis.max).toBeCloseTo(29.86);
+    expect(axis.span).toBeCloseTo(10.9);
+  });
+
+  it('labels three ticks from top to bottom, rounded to whole degrees', () => {
+    const axis = buildTempAxis([20, 30])!;
+
+    // 留白后是 19~31,中位 25
+    expect(axis.ticks.map((t) => t.label)).toEqual(['31°', '25°', '19°']);
+  });
+
+  it('ignores nulls when computing the range', () => {
+    const axis = buildTempAxis([null, 20, null, 30, null])!;
+
+    expect(axis.min).toBeCloseTo(19);
+    expect(axis.max).toBeCloseTo(31);
+  });
+
+  it('keeps a usable span when every reading is identical', () => {
+    // 全部同温时 span 若为 0,除法会把所有点算成 NaN 坐标
+    const axis = buildTempAxis([25, 25, 25])!;
+
+    expect(axis.span).toBeGreaterThan(0);
+    expect(axis.min).toBeCloseTo(24);
+    expect(axis.max).toBeCloseTo(26);
+  });
+
+  it('still labels three distinct degrees even when the readings barely move', () => {
+    // 留白保证 span 至少 2°、三档间距至少 1°,而间距恰好 1 的两个数不可能
+    // 落进同一个取整区间,所以标签必然互不相同 —— 不需要去重分支
+    const axis = buildTempAxis([23.9, 24.0, 24.1])!;
+
+    expect(new Set(axis.ticks.map((t) => t.label)).size).toBe(3);
+  });
+
+  it('labels three distinct degrees even when every reading is identical', () => {
+    const axis = buildTempAxis([25, 25, 25])!;
+
+    expect(axis.ticks.map((t) => t.label)).toEqual(['26°', '25°', '24°']);
+  });
+
+  it('returns null when there is nothing to plot', () => {
+    expect(buildTempAxis([])).toBeNull();
+    expect(buildTempAxis([null, null])).toBeNull();
   });
 });

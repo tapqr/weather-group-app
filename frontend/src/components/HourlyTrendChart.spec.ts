@@ -224,3 +224,94 @@ describe('HourlyTrendChart', () => {
     expect(Number(wrapper.find('.trend__svg').attributes('width'))).toBe(24 * 32);
   });
 });
+
+describe('HourlyTrendChart 的 y 轴', () => {
+  it('labels three temperature ticks', () => {
+    const wrapper = mount(HourlyTrendChart, {
+      props: {
+        hourly: hourly(['15:00', '16:00'], [
+          { provider: 'caiyun', label: '彩云天气', temps: [20, 30] },
+        ]),
+      },
+    });
+
+    // 留白后范围是 19~31,中位 25
+    expect(wrapper.findAll('.trend__ytick').map((t) => t.text())).toEqual(['31°', '25°', '19°']);
+  });
+
+  /*
+   * 刻度必须画在**独立于滚动区**的 SVG 里。画在滚动区里的话横向滑动时
+   * 数字会跟着滑出视野,那就白标了 —— 24 小时的画布宽 768px,手机屏只有 ~340px。
+   */
+  it('keeps the tick labels outside the horizontally scrolling area', () => {
+    const wrapper = mount(HourlyTrendChart, {
+      props: {
+        hourly: hourly(['15:00', '16:00'], [
+          { provider: 'caiyun', label: '彩云天气', temps: [20, 30] },
+        ]),
+      },
+    });
+
+    // 刻度在 .trend__yaxis 里,而 .trend__yaxis 不在 .trend__scroll 里
+    expect(wrapper.find('.trend__yaxis .trend__ytick').exists()).toBe(true);
+    expect(wrapper.find('.trend__scroll .trend__ytick').exists()).toBe(false);
+  });
+
+  it('draws one grid line per tick, aligned to the same y coordinates', () => {
+    const wrapper = mount(HourlyTrendChart, {
+      props: {
+        hourly: hourly(['15:00', '16:00'], [
+          { provider: 'caiyun', label: '彩云天气', temps: [20, 30] },
+        ]),
+      },
+    });
+
+    const gridY = wrapper.findAll('.trend__grid').map((l) => l.attributes('y1'));
+    const tickY = wrapper.findAll('.trend__ytick').map((t) => t.attributes('y'));
+    // 两个 SVG 共用同一个 yOf(),坐标必须逐个相等 —— 否则刻度和网格线会错开
+    expect(gridY).toEqual(tickY);
+    expect(gridY).toHaveLength(3);
+  });
+
+  it('spans the union of all providers so the vertical gap between lines means the temperature gap', () => {
+    // 各家各算一套刻度的话,两条线的垂直距离就不再代表温差了
+    const wrapper = mount(HourlyTrendChart, {
+      props: {
+        hourly: hourly(['15:00'], [
+          { provider: 'caiyun', label: '彩云天气', temps: [20] },
+          { provider: 'qweather', label: '和风天气', temps: [30] },
+        ]),
+      },
+    });
+
+    expect(wrapper.findAll('.trend__ytick').map((t) => t.text())).toEqual(['31°', '25°', '19°']);
+  });
+
+  it('renders no axis at all when there is nothing to plot', () => {
+    const wrapper = mount(HourlyTrendChart, {
+      props: {
+        hourly: hourly(['15:00'], [{ provider: 'caiyun', label: '彩云天气', temps: [null] }]),
+      },
+    });
+
+    expect(wrapper.find('.trend__yaxis').exists()).toBe(false);
+    expect(wrapper.findAll('.trend__grid')).toHaveLength(0);
+  });
+
+  it('keeps the plot usable when every hour has the same temperature', () => {
+    // span 为 0 会让所有点算出 NaN 坐标。留白保证了 span 至少 2°
+    const wrapper = mount(HourlyTrendChart, {
+      props: {
+        hourly: hourly(['15:00', '16:00'], [
+          { provider: 'caiyun', label: '彩云天气', temps: [25, 25] },
+        ]),
+      },
+    });
+
+    expect(wrapper.find('.trend__line').attributes('d')).not.toContain('NaN');
+    for (const line of wrapper.findAll('.trend__grid')) {
+      expect(line.attributes('y1')).not.toContain('NaN');
+    }
+    expect(wrapper.findAll('.trend__ytick').map((t) => t.text())).toEqual(['26°', '25°', '24°']);
+  });
+});

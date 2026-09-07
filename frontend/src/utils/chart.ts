@@ -72,3 +72,53 @@ export function firstCompleteIndex(series: Array<Array<number | null>>, length: 
   }
   return 0;
 }
+
+export interface TempTick {
+  value: number;
+  label: string;
+}
+
+export interface TempAxis {
+  /** 绘图下界(已含留白),不等于数据最小值 */
+  min: number;
+  /** 绘图上界(已含留白) */
+  max: number;
+  /** max - min,保证大于 0 */
+  span: number;
+  /** 从上到下的刻度 */
+  ticks: TempTick[];
+}
+
+/** 上下各留这么多度的空白,免得曲线贴着画布边缘 */
+const TEMP_AXIS_PADDING_C = 1;
+
+/**
+ * 由温度数据算出 y 轴。
+ *
+ * **刻意不做"整齐刻度"(nice scale)。** 把范围对齐到 5 或 10 的倍数当然更好看,
+ * 但那会白扩张纵向范围:实测北京当天温度跨度 19.96~28.86(约 8.9°),对齐到 5 的
+ * 倍数就变成 15~30 共 15°,曲线只占画布高度的 59% —— 两家相差 1° 时的垂直距离
+ * 从 9px 压到 5px。这个图存在的全部理由就是让两家的差异可辨,压扁它等于削弱核心价值。
+ * 所以用数据真实范围 + 固定 1° 留白,刻度值照实取整显示。
+ *
+ * 只给三档(最高/中位/最低):再多在 168px 高的画布上就开始叠字,而且逐时曲线
+ * 要读的是趋势和两条线的间距,不是精确数值 —— 精确数值由读数条负责。
+ */
+export function buildTempAxis(values: Array<number | null>): TempAxis | null {
+  const real = values.filter((v): v is number => v !== null && Number.isFinite(v));
+  if (real.length === 0) return null;
+
+  const dataMin = Math.min(...real);
+  const dataMax = Math.max(...real);
+  const min = dataMin - TEMP_AXIS_PADDING_C;
+  const max = dataMax + TEMP_AXIS_PADDING_C;
+  const span = max - min;
+
+  // 三档的标签不会重复,所以不需要去重分支:留白让 span 至少是 2°,三档间距至少 1°,
+  // 而间距恰好 1 的两个数不可能落进同一个取整区间([n-0.5, n+0.5) 宽度正好是 1,
+  // 半开半闭),所以取整后必然互不相同 —— 哪怕原始数据全部同温
+  const mid = (min + max) / 2;
+  const ticks = [max, mid, min].map((value) => ({ value, label: `${Math.round(value)}°` }));
+
+  return { min, max, span, ticks };
+}
