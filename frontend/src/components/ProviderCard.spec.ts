@@ -230,38 +230,4 @@ describe('ProviderCard 新增指标', () => {
     // 用元素判断而不是搜 '/' —— 页面上 μg/m³、km/h、日期 09/07 都含斜杠
     expect(wrapper.find('.day-night').exists()).toBe(false);
   });
-
-  it('marks each daily row with the cross-provider agreement passed in', () => {
-    const daily = [
-      { date: '2026-09-07', tempMinC: 20, tempMaxC: 28, conditionText: '晴', nightConditionText: null, precipitationProbabilityPercent: 0 },
-      { date: '2026-09-08', tempMinC: 18, tempMaxC: 22, conditionText: '晴', nightConditionText: null, precipitationProbabilityPercent: 0 },
-      { date: '2026-09-09', tempMinC: 17, tempMaxC: 21, conditionText: '晴', nightConditionText: null, precipitationProbabilityPercent: 0 },
-    ];
-    const wrapper = mount(ProviderCard, {
-      props: {
-        slot: slotWith({}, daily),
-        // 第三天只有这一家覆盖(两家天数不同时常见),传 null
-        agreements: { '2026-09-07': 'high', '2026-09-08': 'low', '2026-09-09': null },
-      },
-    });
-
-    const rows = wrapper.findAll('.provider-card__daily li');
-    expect(rows[0].attributes('data-agreement')).toBe('high');
-    expect(rows[1].attributes('data-agreement')).toBe('low');
-    // null 与"没传"都落到 none:这一天没有可比性,不该标成一致
-    expect(rows[2].attributes('data-agreement')).toBe('none');
-  });
-
-  it('falls back to no marking when no agreements are provided at all', () => {
-    // 只有一家有数据时 App 传的是空对象 —— 逐日行不该带任何分歧标记
-    const wrapper = mount(ProviderCard, {
-      props: {
-        slot: slotWith({}, [
-          { date: '2026-09-07', tempMinC: 20, tempMaxC: 28, conditionText: '晴', nightConditionText: null, precipitationProbabilityPercent: 0 },
-        ]),
-      },
-    });
-
-    expect(wrapper.find('.provider-card__daily li').attributes('data-agreement')).toBe('none');
-  });
 });

@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
 import HourlyTrendChart from './HourlyTrendChart.vue';
-import type { AlignedHourly } from '../utils/consensus';
+import type { AlignedHourly } from '../utils/align';
 
 function hourly(
   axis: string[],

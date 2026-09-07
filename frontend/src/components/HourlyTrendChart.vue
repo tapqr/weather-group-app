@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import type { AlignedHourly } from '../utils/consensus';
+import type { AlignedHourly } from '../utils/align';
 import { buildLinePath, firstCompleteIndex, hourIndexFromRatio } from '../utils/chart';
 import { formatTemperature } from '../utils/weather-display';
 

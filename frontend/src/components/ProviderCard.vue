@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ProviderSlot } from '../stores/weather';
-import type { AgreementLevel } from '../utils/consensus';
 import {
   classifyCondition,
   formatPrecip,
@@ -15,18 +14,7 @@ import {
 } from '../utils/weather-display';
 import WeatherIcon from './WeatherIcon.vue';
 
-const props = withDefaults(
-  defineProps<{
-    slot: ProviderSlot;
-    /**
-     * 每天的跨数据源一致性,按日期索引。由 App 算好传进来 ——
-     * 它是"这一天各家分歧有多大"的属性,单张卡片自己算不出来。
-     * 不传(比如只有一家有数据)时逐日行不带任何标记。
-     */
-    agreements?: Record<string, AgreementLevel | null>;
-  }>(),
-  { agreements: () => ({}) },
-);
+const props = defineProps<{ slot: ProviderSlot }>();
 
 // 昼夜只影响晴天图标画太阳还是月亮。彩云的 CLEAR_DAY/CLEAR_NIGHT 在后端归一化时
 // 已被压成「晴」,昼夜信息那一步就丢了,所以这里用本地时钟判断(见 resolveDayPart)
@@ -158,11 +146,7 @@ function barStyle(tempMinC: number, tempMaxC: number) {
       </ul>
 
       <ul v-if="slot.data.daily.length > 0" class="provider-card__daily">
-        <li
-          v-for="(day, index) in slot.data.daily"
-          :key="day.date"
-          :data-agreement="agreements[day.date] ?? 'none'"
-        >
+        <li v-for="(day, index) in slot.data.daily" :key="day.date">
           <span class="day-name">{{ formatDay(day.date, index) }}</span>
           <span class="day-date">{{ formatDate(day.date) }}</span>
           <span class="day-text">
@@ -410,35 +394,9 @@ function barStyle(tempMinC: number, tempMaxC: number) {
   grid-template-columns: 42px 44px 1fr 34px 72px 34px;
   align-items: center;
   gap: 8px;
-  padding: 7px 0 7px 7px;
+  padding: 7px 0;
   font-size: 13px;
   border-top: 1px solid var(--card-veil);
-  /* 一致性色条的位置。默认透明 —— "没有标记"就是"两家一致",视觉噪音最小 */
-  border-left: 2px solid transparent;
-  margin-left: -9px;
-}
-
-/*
- * 跨数据源的一致性用整行左侧色条表达,而不是新增一列文字标签:
- * 这一行已经是六列网格,375px 屏上再加一列会挤爆天气文案。
- *
- * data-agreement="none" 表示这一天只有一家覆盖(两家天数不同时常见),
- * 没有可比性 —— 不标记,而不是标成"一致"。
- */
-.provider-card__daily li[data-agreement='moderate'] {
-  border-left-color: rgba(184, 128, 42, 0.55);
-}
-
-.provider-card__daily li[data-agreement='low'] {
-  border-left-color: rgba(192, 82, 47, 0.85);
-}
-
-:root[data-daypart='night'] .provider-card__daily li[data-agreement='moderate'] {
-  border-left-color: rgba(240, 192, 120, 0.6);
-}
-
-:root[data-daypart='night'] .provider-card__daily li[data-agreement='low'] {
-  border-left-color: rgba(245, 152, 120, 0.9);
 }
 
 /* 夜间天气跟在白天后面,弱化一档 —— 白天那个才是这一行的主信息 */

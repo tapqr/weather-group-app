@@ -36,7 +36,7 @@ npm run build                  # vue-tsc 类型检查 + vite build,类型错误�
 
 ### 降级是产品核心,有两层语义,别搞混
 
-> 术语表在 [`CONTEXT.md`](CONTEXT.md)。那里把"降级"拆成了**数据源失败** / **字段缺失** / **模拟回落**三个词,并且定义了分歧判定的三个层级(**共识** / **分歧** / **一致性**)—— 这几个词混用过,讨论时请用 CONTEXT.md 里的说法。
+> 术语表在 [`CONTEXT.md`](CONTEXT.md)。那里把"降级"拆成了**数据源失败** / **字段缺失** / **模拟回落**三个词 —— 这几个说法混用过,讨论时请用 CONTEXT.md 里的。
 
 `GET /weather?lat=&lon=` 返回 `{ results: ProviderResult[] }`,每个数据源一条:
 
@@ -63,12 +63,10 @@ npm run build                  # vue-tsc 类型检查 + vite build,类型错误�
 - 两家 `daily[].date` 原始都是 `2026-09-02T00:00+08:00`(和风在 `forecastStartTime`),截成 `YYYY-MM-DD`
 - 和风走 **v1 接口**(`/weather/v1/{current,hourly,daily}/{lat}/{lon}`,v7 已标记弃用)。v1 与 v7 有四处不兼容,改这个 Provider 前先看 `qweather.provider.ts` 里的注释:坐标在路径里且**顺序是 lat/lon**(v7 是 `lon,lat`)、湿度和降水概率是 **0~1 小数**、风速是 **m/s**(v7 是 km/h)、时间戳默认 **UTC**,必须传 `localTime=true`。注意 v1 **没有 `unit` 查询参数**(那是 v7 才有的),单位固定公制,换算只能在 Provider 里做
 - 两家 `daily` 长度不同(和风 7 天、彩云 3 天,免费版差异),**前端不能假设各列行数相等**
-- ⚠️ **两家的 `hourly` 起始时刻也不一样**。2026-09-07 实测同一次请求里彩云从 15:00 起、和风从 16:00 起。跨数据源对比**必须按时间戳对齐,绝不能按数组下标** —— 按下标配对会把彩云 15:00 和和风 16:00 当成同一时刻,整条曲线系统性错位一小时,而且画出来完全看不出异常。对齐逻辑在 `frontend/src/utils/consensus.ts` 的 `alignHourly`
+- ⚠️ **两家的 `hourly` 起始时刻也不一样**。2026-09-07 实测同一次请求里彩云从 15:00 起、和风从 16:00 起。跨数据源对比**必须按时间戳对齐,绝不能按数组下标** —— 按下标配对会把彩云 15:00 和和风 16:00 当成同一时刻,整条曲线系统性错位一小时,而且画出来完全看不出异常。对齐逻辑在 `frontend/src/utils/align.ts` 的 `alignHourly`
 - 彩云免费版**不返回 `minutely`**(分钟级降水)。实测响应里只有 `daily/hourly/realtime/primary/forecast_keypoint`,没有 `minutely` 这个 section —— 任何依赖它的功能都做不了
 
 新增数据源:在 `providers/` 加一个实现 `WeatherProvider` 接口的类,注册进 `providers.module.ts` 的 `WEATHER_PROVIDERS` 工厂数组,再到前端 `App.vue` / `ProviderCard.vue` 的 `PROVIDER_LABELS` 各加一行中文名,最后在 `frontend/src/style.css` 的三个 `[data-daypart]` 块里各加一个 `--series-<名字>` 曲线配色(不加也能跑,会落到 `--series-fallback` 的灰色)。`WeatherService` 本身不用改。
-
-跨数据源的判定逻辑(`utils/consensus.ts`)一律用**极差**而不是"两家之差",所以新增数据源后分歧判定会自动把它算进去,不需要改。
 
 ### geo 模块:同样的降级思路,但规则相反
 
@@ -78,16 +76,14 @@ npm run build                  # vue-tsc 类型检查 + vite build,类型错误�
 - 缓存:失败**一律不缓存**(TTL 长达 24 小时,缓存住一次瞬时抖动会固化一整天);空结果(查无此地)是有效结果,照常缓存。
 - 限流:与 `/weather` 走独立的 `geo` 限流器,但 `GEO_THROTTLE_LIMIT` 是**每个路由各自的额度**(`@nestjs/throttler` 的限流 key 按 handler 生成)——三个路由合计是配置值的 3 倍,评估上游免费额度要按合计值算。详见 `backend/README.md`「缓存与限流」。
 
-### 前端分成"跨数据源区块"和"按数据源卡片"两层
+### 前端只呈现差异,不对差异下结论
 
-页面自上而下:城市标题 → `headline`(各家实况大温度并列)→ `ConsensusCard`(分歧摘要)→ `HourlyTrendChart`(逐时曲线)→ 每家一张 `ProviderCard`。
+页面自上而下:城市标题 → `headline`(各家实况大温度并列)→ `HourlyTrendChart`(逐时曲线)→ 每家一张 `ProviderCard`。
 
-前两个新区块是**跨数据源**的,数据来自 `utils/consensus.ts`:
+⚠️ **不要加"总结卡""一致性评级""可信度提示"这类东西。** 做过又删了,理由见
+[`docs/adr/0002-no-consensus-verdict.md`](docs/adr/0002-no-consensus-verdict.md):两家跑的是两套独立预测系统(和风偏 ECMWF 中长期、彩云偏雷达短临),**分歧是系统性常态而非异常**,把它渲染成告警等于天天亮红灯;而且那些结论的信息全都已经在 headline、曲线和两张卡片里呈现过了。判断标准很简单 —— 新功能是在**呈现**差异还是在**评价**差异,后者不做。
 
-- `alignHourly` / `alignDaily` —— 按时间戳和日期对齐各家预报(**不是按数组下标**,见上面归一化那节的警告),缺失处留 `null` 让曲线断开而不是补值
-- `buildConsensus` —— 生成三档共识判定。不足两家有实况时返回 `null`,`ConsensusCard` 整个不渲染("一家数据谈不上共识")
-
-`ProviderCard` 只渲染它自己那家的数据,唯一的例外是逐日行上的一致性标记 —— 那是跨数据源属性,由 `App.vue` 算好通过 `agreements` prop 传进去。
+唯一的跨数据源区块是逐时曲线,数据来自 `utils/align.ts` 的 `alignHourly`:按时间戳对齐(**不是按数组下标**,见上面归一化那节的警告),缺失处留 `null` 让曲线断开而不是补值。`ProviderCard` 只渲染它自己那家的数据,没有任何跨数据源的入参。
 
 曲线的纯几何计算在 `utils/chart.ts`(断线、指针位置换算、默认读数时刻),刻意与组件分离:jsdom 不做布局(`getBoundingClientRect()` 恒返回 0、`PointerEvent.clientX` 只读),隔着 DOM 测不了坐标,抽成纯函数才能直接对数字断言。为什么不引图表库见 [`docs/adr/0001-hand-rolled-svg-charts.md`](docs/adr/0001-hand-rolled-svg-charts.md)。
 
@@ -117,7 +113,7 @@ npm run build                  # vue-tsc 类型检查 + vite build,类型错误�
 ## 文档位置
 
 - `CONTEXT.md` —— 术语表(ubiquitous language)。只放术语,不放实现细节
-- `docs/adr/` —— 架构决策记录。目前只有一条:为什么曲线是手写 SVG 而不是图表库
+- `docs/adr/` —— 架构决策记录。两条:为什么曲线是手写 SVG 而不是图表库;为什么不对两家的差异下聚合结论
 - `backend/README.md` —— API 契约、环境变量表、凭据申请、缓存限流、部署注意事项(**改后端行为时同步更新它**)
 - `docs/superpowers/specs/` 和 `docs/superpowers/plans/` —— 设计规格与实现计划,记录了当初为什么这么选
 - `frontend/README.md` 目前还是 Vite 默认模板,没有实际内容

@@ -351,20 +351,36 @@ describe('App 跨数据源区块', () => {
     };
   }
 
-  it('renders the consensus card and the trend chart once two providers report', async () => {
+  it('renders the trend chart once two providers report', async () => {
     vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue(twoProviders());
 
     const wrapper = mount(App);
     await flushPromises();
 
-    expect(wrapper.find('.consensus').exists()).toBe(true);
     expect(wrapper.find('.trend').exists()).toBe(true);
     // 两家各一条曲线
     expect(wrapper.findAll('.trend__line')).toHaveLength(2);
   });
 
-  it('hides the consensus card when only one provider has data', async () => {
-    // 一家数据谈不上"共识" —— 这张卡整个不该出现
+  /*
+   * 页面刻意不对差异下任何聚合结论 —— 两家跑的是不同模型、不同更新节奏,
+   * 分歧是系统性常态而非异常事件,把它渲染成告警等于天天亮红灯。
+   * 详见 docs/adr/0002-no-consensus-verdict.md。
+   */
+  it('shows no verdict or warning banner about the divergence', async () => {
+    vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue(twoProviders());
+
+    const wrapper = mount(App);
+    await flushPromises();
+
+    // 这组 fixture 里两家的天气文案和降水概率都明显不同,但页面不该出现任何结论文案
+    const text = wrapper.text();
+    for (const verdict of ['高度一致', '大体吻合', '存在明显分歧', '分歧']) {
+      expect(text).not.toContain(verdict);
+    }
+  });
+
+  it('keeps the chart and both cards when only one provider has data', async () => {
     vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue({
       results: [
         twoProviders().results[0],
@@ -375,34 +391,22 @@ describe('App 跨数据源区块', () => {
     const wrapper = mount(App);
     await flushPromises();
 
-    expect(wrapper.find('.consensus').exists()).toBe(false);
-    // 但曲线还在:剩下那家的趋势仍然有用
+    // 剩下那家的趋势仍然有用
     expect(wrapper.findAll('.trend__line')).toHaveLength(1);
     // 失败的数据源仍占一张卡片 —— "这里本该有一家的数据"本身就是信息
     expect(wrapper.text()).toContain('数据源暂时不可用');
+    expect(wrapper.findAll('.provider-card')).toHaveLength(2);
   });
 
-  it('flags the divergence when the two providers disagree about rain', async () => {
-    // 实测场景:彩云报「晴」、和风报「阴」且降水概率 68% —— 正是该报警的情况
+  it('leaves the daily rows unmarked, since a per-day grade is the same kind of verdict', async () => {
     vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue(twoProviders());
 
     const wrapper = mount(App);
     await flushPromises();
 
-    expect(wrapper.find('.consensus').attributes('data-level')).toBe('divergent');
-  });
-
-  it('passes the per-day agreement down so both cards mark the same days', async () => {
-    vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue(twoProviders());
-
-    const wrapper = mount(App);
-    await flushPromises();
-
-    const rows = wrapper.findAll('.provider-card__daily li');
-    // 09-07 两家都有 → 有评级;09-08 只有和风 → 无可比性,标 none
-    const marks = rows.map((row) => row.attributes('data-agreement'));
-    expect(marks).toContain('none');
-    expect(marks.some((m) => m === 'moderate' || m === 'low' || m === 'high')).toBe(true);
+    for (const row of wrapper.findAll('.provider-card__daily li')) {
+      expect(row.attributes('data-agreement')).toBeUndefined();
+    }
   });
 
   it('aligns the two hourly series by timestamp in the rendered chart', async () => {

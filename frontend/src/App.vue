@@ -4,14 +4,13 @@ import { useWeatherStore } from './stores/weather';
 import { requestCurrentLocation } from './composables/useGeolocation';
 import CitySearch from './components/CitySearch.vue';
 import ProviderCard from './components/ProviderCard.vue';
-import ConsensusCard from './components/ConsensusCard.vue';
 import HourlyTrendChart from './components/HourlyTrendChart.vue';
 import WeatherIcon from './components/WeatherIcon.vue';
 import type { NormalizedLocation } from './types/location';
 import { fetchReverseLocation } from './api/geo';
 import { formatLocationName } from './utils/location-display';
 import { classifyCondition, formatTemperature, resolveDayPart, type DayPart } from './utils/weather-display';
-import { alignDaily, alignHourly, buildConsensus, type OkProvider } from './utils/consensus';
+import { alignHourly, type OkProvider } from './utils/align';
 
 const PROVIDER_LABELS: Record<string, string> = {
   qweather: '和风天气',
@@ -69,17 +68,8 @@ const okProviders = computed<OkProvider[]>(() =>
     })),
 );
 
-// 按时间戳对齐,不按下标 —— 实测两家的逐时起始时刻能差一小时(见 consensus.ts)
+// 按时间戳对齐,不按下标 —— 实测两家的逐时起始时刻能差一小时(见 align.ts)
 const alignedHourly = computed(() => alignHourly(okProviders.value));
-
-// 每天的一致性评级传给两张卡片,由它们在逐日行上标出来。
-// 单张卡片自己算不出这个值:它是跨数据源的属性
-const dailyAgreements = computed(() =>
-  Object.fromEntries(alignDaily(okProviders.value).map((row) => [row.date, row.agreement])),
-);
-
-// 少于两家有实况时返回 null,卡片整个不渲染 —— 一家数据谈不上"共识"
-const consensus = computed(() => buildConsensus(okProviders.value, alignedHourly.value));
 
 // 自增"选择世代"号,统一仲裁两条独立写 cityName/天气的路径(手选 city vs 定位反查):
 // 谁的世代号在写入时仍是当前值,谁才能真正落地。避免晚到的反查结果覆盖用户手选的城市。
@@ -153,19 +143,11 @@ onMounted(async () => {
         </div>
       </section>
 
-      <!-- 分歧摘要放在最上面:用户扫一眼就知道两家在哪儿不一致,再往下看细节 -->
-      <ConsensusCard v-if="consensus" :consensus="consensus" />
-
       <!-- 逐时曲线是跨数据源的,所以独立成块;卡片里那份逐时列表保留(它带天气文案) -->
       <HourlyTrendChart :hourly="alignedHourly" />
 
       <div class="app__cards">
-        <ProviderCard
-          v-for="slot in store.providers"
-          :key="slot.provider"
-          :slot="slot"
-          :agreements="dailyAgreements"
-        />
+        <ProviderCard v-for="slot in store.providers" :key="slot.provider" :slot="slot" />
       </div>
     </template>
 
