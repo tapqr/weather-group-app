@@ -4,10 +4,14 @@ import { useWeatherStore } from './stores/weather';
 import { requestCurrentLocation } from './composables/useGeolocation';
 import CitySearch from './components/CitySearch.vue';
 import ProviderCard from './components/ProviderCard.vue';
+import ConsensusCard from './components/ConsensusCard.vue';
+import HourlyTrendChart from './components/HourlyTrendChart.vue';
+import WeatherIcon from './components/WeatherIcon.vue';
 import type { NormalizedLocation } from './types/location';
 import { fetchReverseLocation } from './api/geo';
 import { formatLocationName } from './utils/location-display';
-import { formatTemperature, resolveDayPart } from './utils/weather-display';
+import { classifyCondition, formatTemperature, resolveDayPart, type DayPart } from './utils/weather-display';
+import { alignDaily, alignHourly, buildConsensus, type OkProvider } from './utils/consensus';
 
 const PROVIDER_LABELS: Record<string, string> = {
   qweather: '和风天气',
@@ -18,6 +22,8 @@ const PROVIDER_LABELS: Record<string, string> = {
 const store = useWeatherStore();
 const locationDenied = ref(false);
 const searchOpen = ref(false);
+// 图标需要知道昼夜(晴天画太阳还是月亮),所以除了写进 DOM 还留一份在这里
+const daypart = ref<DayPart>(resolveDayPart(new Date()));
 
 // 昼夜基调写在根元素上,style.css 里的 :root[data-daypart] 据此换整套配色
 const THEME_COLORS: Record<string, string> = {
@@ -28,6 +34,7 @@ const THEME_COLORS: Record<string, string> = {
 
 function applyDayPart() {
   const part = resolveDayPart(new Date());
+  daypart.value = part;
   document.documentElement.dataset.daypart = part;
   // 让移动端浏览器的地址栏/状态栏跟着一起变,这是"像原生应用"很关键的一环
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[part]);
@@ -40,8 +47,39 @@ const headline = computed(() =>
     ok: slot.status === 'ok' && slot.data?.current != null,
     temp: slot.data?.current ? formatTemperature(slot.data.current.tempC) : null,
     text: slot.data?.current?.conditionText ?? null,
+    // 失败态与未知天气共用中性图标,和卡片配色的处理保持一致
+    condition: classifyCondition(slot.data?.current?.conditionText ?? ''),
   })),
 );
+
+/*
+ * 跨数据源的派生数据都从这一份 okProviders 出发。
+ *
+ * 只取 status==='ok' 且真的有 data 的那些 —— 失败的数据源不参与对齐和分歧判定
+ * (拿一家的数据跟"没有数据"比较没有意义),但它在页面上仍然占一张卡片的位置,
+ * 因为"这里本该有一家的数据"本身就是信息。
+ */
+const okProviders = computed<OkProvider[]>(() =>
+  store.providers
+    .filter((slot) => slot.status === 'ok' && slot.data !== null)
+    .map((slot) => ({
+      provider: slot.provider,
+      label: PROVIDER_LABELS[slot.provider] ?? slot.provider,
+      data: slot.data!,
+    })),
+);
+
+// 按时间戳对齐,不按下标 —— 实测两家的逐时起始时刻能差一小时(见 consensus.ts)
+const alignedHourly = computed(() => alignHourly(okProviders.value));
+
+// 每天的一致性评级传给两张卡片,由它们在逐日行上标出来。
+// 单张卡片自己算不出这个值:它是跨数据源的属性
+const dailyAgreements = computed(() =>
+  Object.fromEntries(alignDaily(okProviders.value).map((row) => [row.date, row.agreement])),
+);
+
+// 少于两家有实况时返回 null,卡片整个不渲染 —— 一家数据谈不上"共识"
+const consensus = computed(() => buildConsensus(okProviders.value, alignedHourly.value));
 
 // 自增"选择世代"号,统一仲裁两条独立写 cityName/天气的路径(手选 city vs 定位反查):
 // 谁的世代号在写入时仍是当前值,谁才能真正落地。避免晚到的反查结果覆盖用户手选的城市。
@@ -103,7 +141,10 @@ onMounted(async () => {
           <span class="headline__label">{{ item.label }}</span>
           <template v-if="item.ok">
             <strong class="headline__temp">{{ item.temp }}°</strong>
-            <span class="headline__text">{{ item.text }}</span>
+            <span class="headline__text">
+              <WeatherIcon :condition="item.condition" :daypart="daypart" :size="16" />
+              {{ item.text }}
+            </span>
           </template>
           <template v-else>
             <strong class="headline__temp headline__temp--muted">—</strong>
@@ -112,8 +153,19 @@ onMounted(async () => {
         </div>
       </section>
 
+      <!-- 分歧摘要放在最上面:用户扫一眼就知道两家在哪儿不一致,再往下看细节 -->
+      <ConsensusCard v-if="consensus" :consensus="consensus" />
+
+      <!-- 逐时曲线是跨数据源的,所以独立成块;卡片里那份逐时列表保留(它带天气文案) -->
+      <HourlyTrendChart :hourly="alignedHourly" />
+
       <div class="app__cards">
-        <ProviderCard v-for="slot in store.providers" :key="slot.provider" :slot="slot" />
+        <ProviderCard
+          v-for="slot in store.providers"
+          :key="slot.provider"
+          :slot="slot"
+          :agreements="dailyAgreements"
+        />
       </div>
     </template>
 
@@ -204,6 +256,9 @@ onMounted(async () => {
 .headline__text {
   font-size: 14px;
   color: var(--ink-dim);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .app__cards {

@@ -20,7 +20,20 @@ describe('useWeatherStore', () => {
           data: {
             provider: 'qweather',
             updatedAt: '2026-09-02T00:00:00+08:00',
-            current: { tempC: 20, feelsLikeC: 20, conditionText: '晴', humidityPercent: 50, windSpeedKph: 10 },
+            current: {
+              tempC: 20,
+              feelsLikeC: 20,
+              conditionText: '晴',
+              humidityPercent: 50,
+              windSpeedKph: 10,
+              // 本用例不关心这些指标,给 null(契约允许,表示该数据源没拿到)
+              windDirectionDeg: null,
+              windScale: null,
+              pressureHpa: null,
+              visibilityKm: null,
+              precipMm: null,
+              airQuality: null,
+            },
             hourly: [],
             daily: [],
           },

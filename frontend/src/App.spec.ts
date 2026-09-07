@@ -25,7 +25,20 @@ function weatherResultFor(tempC: number): AggregatedWeatherResponse {
         data: {
           provider: 'qweather',
           updatedAt: '2026-09-03T00:00:00+08:00',
-          current: { tempC, feelsLikeC: tempC, conditionText: '晴', humidityPercent: 40, windSpeedKph: 10 },
+          current: {
+            tempC,
+            feelsLikeC: tempC,
+            conditionText: '晴',
+            humidityPercent: 40,
+            windSpeedKph: 10,
+            // 本用例不关心这些指标,给 null(契约允许,表示该数据源没拿到)
+            windDirectionDeg: null,
+            windScale: null,
+            pressureHpa: null,
+            visibilityKm: null,
+            precipMm: null,
+            airQuality: null,
+          },
           hourly: [],
           daily: [],
         },
@@ -59,7 +72,20 @@ describe('App', () => {
           data: {
             provider: 'qweather',
             updatedAt: '2026-09-02T00:00:00+08:00',
-            current: { tempC: 20, feelsLikeC: 19, conditionText: '晴', humidityPercent: 40, windSpeedKph: 10 },
+            current: {
+              tempC: 20,
+              feelsLikeC: 19,
+              conditionText: '晴',
+              humidityPercent: 40,
+              windSpeedKph: 10,
+              // 本用例不关心这些指标,给 null(契约允许,表示该数据源没拿到)
+              windDirectionDeg: null,
+              windScale: null,
+              pressureHpa: null,
+              visibilityKm: null,
+              precipMm: null,
+              airQuality: null,
+            },
             hourly: [],
             daily: [],
           },
@@ -106,7 +132,20 @@ describe('App', () => {
           data: {
             provider: 'qweather',
             updatedAt: '2026-09-03T00:00:00+08:00',
-            current: { tempC: 20, feelsLikeC: 19, conditionText: '晴', humidityPercent: 40, windSpeedKph: 10 },
+            current: {
+              tempC: 20,
+              feelsLikeC: 19,
+              conditionText: '晴',
+              humidityPercent: 40,
+              windSpeedKph: 10,
+              // 本用例不关心这些指标,给 null(契约允许,表示该数据源没拿到)
+              windDirectionDeg: null,
+              windScale: null,
+              pressureHpa: null,
+              visibilityKm: null,
+              precipMm: null,
+              airQuality: null,
+            },
             hourly: [],
             daily: [],
           },
@@ -146,7 +185,20 @@ describe('App', () => {
           data: {
             provider: 'qweather',
             updatedAt: '2026-09-03T00:00:00+08:00',
-            current: { tempC: 20, feelsLikeC: 19, conditionText: '晴', humidityPercent: 40, windSpeedKph: 10 },
+            current: {
+              tempC: 20,
+              feelsLikeC: 19,
+              conditionText: '晴',
+              humidityPercent: 40,
+              windSpeedKph: 10,
+              // 本用例不关心这些指标,给 null(契约允许,表示该数据源没拿到)
+              windDirectionDeg: null,
+              windScale: null,
+              pressureHpa: null,
+              visibilityKm: null,
+              precipMm: null,
+              airQuality: null,
+            },
             hourly: [],
             daily: [],
           },
@@ -222,5 +274,151 @@ describe('App', () => {
 
     expect(wrapper.text()).toContain('上海');
     expect(wrapper.text()).not.toContain('北京·东城');
+  });
+});
+
+describe('App 跨数据源区块', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.stubGlobal('navigator', {
+      geolocation: {
+        getCurrentPosition: (success: PositionCallback) =>
+          success({ coords: { latitude: 39.92, longitude: 116.41 } } as GeolocationPosition),
+      },
+    });
+    vi.spyOn(geoApi, 'fetchReverseLocation').mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function current(tempC: number, conditionText: string) {
+    return {
+      tempC,
+      feelsLikeC: tempC,
+      conditionText,
+      humidityPercent: 50,
+      windSpeedKph: 10,
+      windDirectionDeg: 90,
+      windScale: 2,
+      pressureHpa: 1011,
+      visibilityKm: 20,
+      precipMm: 0,
+      airQuality: { aqi: 45, category: '优', pm25: 17 },
+    };
+  }
+
+  function twoProviders(): AggregatedWeatherResponse {
+    return {
+      results: [
+        {
+          provider: 'caiyun',
+          status: 'ok',
+          data: {
+            provider: 'caiyun',
+            updatedAt: '2026-09-07T15:00:00+08:00',
+            // 起始时刻刻意比和风早一小时,复现实测到的错位场景
+            current: current(28.9, '晴'),
+            hourly: [
+              { time: '2026-09-07T15:00+08:00', tempC: 28.9, conditionText: '晴', precipitationProbabilityPercent: 0 },
+              { time: '2026-09-07T16:00+08:00', tempC: 27.9, conditionText: '晴', precipitationProbabilityPercent: 0 },
+            ],
+            daily: [
+              { date: '2026-09-07', tempMinC: 20, tempMaxC: 28.9, conditionText: '多云', nightConditionText: '小雨', precipitationProbabilityPercent: 0 },
+            ],
+          },
+        },
+        {
+          provider: 'qweather',
+          status: 'ok',
+          data: {
+            provider: 'qweather',
+            updatedAt: '2026-09-07T15:00:00+08:00',
+            current: current(29, '阴'),
+            hourly: [
+              { time: '2026-09-07T16:00+08:00', tempC: 27.5, conditionText: '阴', precipitationProbabilityPercent: 68 },
+              { time: '2026-09-07T17:00+08:00', tempC: 27, conditionText: '阴', precipitationProbabilityPercent: 70 },
+            ],
+            daily: [
+              { date: '2026-09-07', tempMinC: 21.6, tempMaxC: 29, conditionText: '小雨', nightConditionText: '中雨', precipitationProbabilityPercent: 68 },
+              { date: '2026-09-08', tempMinC: 18.3, tempMaxC: 21.5, conditionText: '小雨', nightConditionText: '晴间多云', precipitationProbabilityPercent: 88 },
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  it('renders the consensus card and the trend chart once two providers report', async () => {
+    vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue(twoProviders());
+
+    const wrapper = mount(App);
+    await flushPromises();
+
+    expect(wrapper.find('.consensus').exists()).toBe(true);
+    expect(wrapper.find('.trend').exists()).toBe(true);
+    // 两家各一条曲线
+    expect(wrapper.findAll('.trend__line')).toHaveLength(2);
+  });
+
+  it('hides the consensus card when only one provider has data', async () => {
+    // 一家数据谈不上"共识" —— 这张卡整个不该出现
+    vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue({
+      results: [
+        twoProviders().results[0],
+        { provider: 'qweather', status: 'error', message: '数据源暂时不可用' },
+      ],
+    });
+
+    const wrapper = mount(App);
+    await flushPromises();
+
+    expect(wrapper.find('.consensus').exists()).toBe(false);
+    // 但曲线还在:剩下那家的趋势仍然有用
+    expect(wrapper.findAll('.trend__line')).toHaveLength(1);
+    // 失败的数据源仍占一张卡片 —— "这里本该有一家的数据"本身就是信息
+    expect(wrapper.text()).toContain('数据源暂时不可用');
+  });
+
+  it('flags the divergence when the two providers disagree about rain', async () => {
+    // 实测场景:彩云报「晴」、和风报「阴」且降水概率 68% —— 正是该报警的情况
+    vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue(twoProviders());
+
+    const wrapper = mount(App);
+    await flushPromises();
+
+    expect(wrapper.find('.consensus').attributes('data-level')).toBe('divergent');
+  });
+
+  it('passes the per-day agreement down so both cards mark the same days', async () => {
+    vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue(twoProviders());
+
+    const wrapper = mount(App);
+    await flushPromises();
+
+    const rows = wrapper.findAll('.provider-card__daily li');
+    // 09-07 两家都有 → 有评级;09-08 只有和风 → 无可比性,标 none
+    const marks = rows.map((row) => row.attributes('data-agreement'));
+    expect(marks).toContain('none');
+    expect(marks.some((m) => m === 'moderate' || m === 'low' || m === 'high')).toBe(true);
+  });
+
+  it('aligns the two hourly series by timestamp in the rendered chart', async () => {
+    // 彩云 15:00 起、和风 16:00 起 → 并集三个时刻。按下标配对只会有两个
+    vi.spyOn(weatherApi, 'fetchWeather').mockResolvedValue(twoProviders());
+
+    const wrapper = mount(App);
+    await flushPromises();
+
+    // x 轴刻度每 3 小时才显示一个,所以数 path 的断点更可靠:
+    // 和风在 15:00 没有数据,它那条线必须从第二个点才起笔
+    const lines = wrapper.findAll('.trend__line');
+    const qweatherLine = lines.find((l) => l.attributes('data-provider') === 'qweather')!;
+    const caiyunLine = lines.find((l) => l.attributes('data-provider') === 'caiyun')!;
+    // 起笔的 x 坐标不同,说明两条线确实按各自的时刻落位而不是都从 0 开始
+    const startX = (d: string) => Number(d.match(/^M([\d.]+)/)![1]);
+    expect(startX(qweatherLine.attributes('d')!)).toBeGreaterThan(startX(caiyunLine.attributes('d')!));
   });
 });

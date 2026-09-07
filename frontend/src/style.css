@@ -20,6 +20,9 @@
   --card-border: rgba(255, 255, 255, 0.14);
   --card-veil: rgba(255, 255, 255, 0.1);
 
+  /* 没有专属配色的数据源走这个兜底色(加第三家时先能画出线,再决定给不给它专属色) */
+  --series-fallback: rgba(128, 140, 160, 0.85);
+
   font-family: var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -43,6 +46,10 @@
   --ink-faint: rgba(13, 36, 54, 0.4);
   --card-veil: rgba(13, 36, 54, 0.07);
   --card-border: rgba(13, 36, 54, 0.1);
+
+  /* 曲线配色:彩云偏蓝、和风偏琥珀。浅背景上要用深色才够对比度 */
+  --series-caiyun: #1f6fb2;
+  --series-qweather: #b9761a;
 }
 
 /* 晨昏:浅橙粉到浅藕紫,深色文字 */
@@ -55,6 +62,10 @@
   --ink-faint: rgba(52, 25, 42, 0.44);
   --card-veil: rgba(52, 25, 42, 0.08);
   --card-border: rgba(52, 25, 42, 0.12);
+
+  /* 晨昏背景本身是浅橙粉,琥珀线要压得更深才不糊在背景里 */
+  --series-caiyun: #1a5c9c;
+  --series-qweather: #98500f;
 }
 
 /* 夜间:中深蓝紫,浅色文字。背景不压到最暗,给卡片留出更深的一档 */
@@ -67,6 +78,10 @@
   --ink-faint: rgba(238, 243, 255, 0.45);
   --card-veil: rgba(4, 8, 24, 0.24);
   --card-border: rgba(4, 8, 24, 0.32);
+
+  /* 夜间背景是深蓝紫,曲线要提亮 —— 白天那套深色在这里几乎看不见 */
+  --series-caiyun: #6cc5ff;
+  --series-qweather: #ffc069;
 }
 
 * {

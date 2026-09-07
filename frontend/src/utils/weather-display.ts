@@ -75,3 +75,64 @@ export function formatWindSpeed(kph: number | null): string {
   }
   return String(Math.round(kph));
 }
+
+/**
+ * 风向角度 → 中文方位名。
+ *
+ * 气象上的"风向"指风的**来向**,0° 是北风(风从北边吹来),不是吹向北。
+ *
+ * 为什么在前端算而不用上游给的:和风给了英文缩写方位(`wind.direction.compass`,如 "ene"),
+ * 彩云只给角度。如果一家用 compass、一家用角度换算,两家的分档口径就不一样了 ——
+ * "ene"(东北偏东)属于 16 方位制,而角度换算出来是 8 方位制,并排显示会出现同一个风向
+ * 被写成两个名字。统一从角度算,两家才可比。
+ *
+ * 用 8 方位而不是 16 方位:"东北偏东风"在手机上太长,会把指标行挤换行,
+ * 而天气预报的风向精度本来也支撑不起 16 档。
+ */
+const COMPASS_POINTS = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'] as const;
+
+export function formatWindDirection(degree: number | null): string {
+  if (degree === null || !Number.isFinite(degree)) {
+    return '—';
+  }
+  // 每 45° 一档,四舍五入后取模 —— 350° 和 10° 都该落回"北"
+  const index = Math.round(((degree % 360) + 360) % 360 / 45) % 8;
+  return `${COMPASS_POINTS[index]}风`;
+}
+
+/**
+ * 气压取整(hPa,不含单位)。
+ *
+ * 彩云换算过来是 1004.9758 这种值(原始是帕),和风是 1011.66 ——
+ * 小数位纯粹是单位换算和上游精度的产物,对"今天气压高不高"没有任何意义。
+ */
+export function formatPressure(hPa: number | null): string {
+  return hPa === null ? '—' : String(Math.round(hPa));
+}
+
+/**
+ * 能见度取整(km,不含单位)。20.15 / 21.85 这种小数同理,取整即可。
+ */
+export function formatVisibility(km: number | null): string {
+  return km === null ? '—' : String(Math.round(km));
+}
+
+/**
+ * 降水量(mm,不含单位)。
+ *
+ * 这里**保留一位小数**,和温度/风速的取整策略不同 —— 降水量本来就常在 0~1 之间,
+ * 取整会把"0.4mm 的小雨"和"没下雨"都显示成 0,那是有意义的信息被抹掉。
+ */
+export function formatPrecip(mm: number | null): string {
+  return mm === null ? '—' : mm.toFixed(1);
+}
+
+/**
+ * 风力等级(不含"级"字)。
+ *
+ * 0 是"无风"这个真实观测值,必须显示成 "0" 而不是 "—" ——
+ * 后端在拿不到风速时给的是 null,两者含义完全不同。
+ */
+export function formatWindScale(scale: number | null): string {
+  return scale === null ? '—' : String(scale);
+}
